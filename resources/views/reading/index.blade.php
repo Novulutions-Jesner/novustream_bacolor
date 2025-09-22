@@ -12,9 +12,13 @@
                                     <div class="col-md-12 mb-3">
                                         <label for="zone_no" class="form-label">Zone</label>
                                         <select name="zone_no" id="zone_no" class="form-select text-uppercase dropdown-toggle">
-                                            <option value="all"> All Zones </option>
+                                            @if($showAllOption)
+                                                <option value="all"> All Zones </option>
+                                            @endif
                                             @foreach($zones as $item)
-                                                <option value="{{$item->zone}}"> {{$item->zone . ' - ' . $item->area}} </option>
+                                                <option value="{{ $item->zone }}">
+                                                    {{ $item->zone . ' - ' . $item->area }}
+                                                </option>
                                             @endforeach
                                         </select>
                                         @error('zone_no')

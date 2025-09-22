@@ -58,65 +58,86 @@ class ReadingController extends Controller
     }
 
     public function index(Request $request) {
+    if ($request->ajax()) {
+        $payload = $request->all();
 
-        if($request->ajax()) {
+        $user = auth()->user();
+        if ($user->user_type === 'technician') {
+            $assignedZones = explode(',', $user->zone_assigned);
+            $payload['zones'] = $assignedZones;
 
-            $payload = $request->all();
-
-            if (isset($payload['isGetPrevious']) && $payload['isGetPrevious'] == true) {
-                try {
-                    $response = $this->meterService->getPreviousReading($payload['account_no']);
-                    return response()->json($response);
-                } catch (\Exception $e) {
-                    Log::error('getPreviousReading failed: ' . $e->getMessage());
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Unable to get previous reading.'
-                    ], 500);
+            if (!empty($payload['zone']) && strtolower($payload['zone']) !== 'all') {
+                if (in_array($payload['zone'], $assignedZones)) {
+                    $payload['zones'] = [$payload['zone']];
+                } else {
+                    $payload['zones'] = [];
                 }
             }
+        }
 
-
-            if(isset($payload['isReRead']) && $payload['isReRead'] == 'true') {
-                $response = $this->meterService->getReRead($payload['reference_no']);
+        if (isset($payload['isGetPrevious']) && $payload['isGetPrevious'] == true) {
+            try {
+                $response = $this->meterService->getPreviousReading($payload['account_no']);
                 return response()->json($response);
+            } catch (\Exception $e) {
+                Log::error('getPreviousReading failed: ' . $e->getMessage());
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unable to get previous reading.'
+                ], 500);
             }
+        }
 
-            if(isset($payload['isGetRecentReading']) && $payload['isGetRecentReading'] == true) {
-                $response = session('recent_reading') ?? null;
-                return response()->json($response);
-            }
 
-            if(isset($payload['isGetReadUnread']) && $payload['isGetReadUnread'] == true) {
-                $response = $this->meterService->getReadUnread($payload['targetDate']);
-                return response()->json($response);
-            }
-
-            $response = $this->meterService->filterAccount($request->all());
+        if(isset($payload['isReRead']) && $payload['isReRead'] == 'true') {
+            $response = $this->meterService->getReRead($payload['reference_no']);
             return response()->json($response);
+        }
+
+        if(isset($payload['isGetRecentReading']) && $payload['isGetRecentReading'] == true) {
+            $response = session('recent_reading') ?? null;
+            return response()->json($response);
+        }
+
+        if(isset($payload['isGetReadUnread']) && $payload['isGetReadUnread'] == true) {
+            $response = $this->meterService->getReadUnread($payload['targetDate']);
+            return response()->json($response);
+        }
+
+        $response = $this->meterService->filterAccount($payload);
+        return response()->json($response);
         }
 
         $isReRead = !empty($request->input('re-read')) && !empty($request->input('reference_no')) ? true : false;
         $reference_no = $request->input('reference_no') ?? null;
 
-        if($isReRead) {
+        if ($isReRead) {
             $bill = $this->meterService->getBill($reference_no);
-            if(isset($bill['status']) && $bill['status'] == 'error') {
+            if (isset($bill['status']) && $bill['status'] == 'error') {
                 return redirect()->route('reading.index');
             }
         }
 
-        // $zones = $this->meterService->getZones();
-        $zones = Zone::all();
+        $user = auth()->user();
 
+        if ($user->user_type === 'technician') {
+            $assignedZones = explode(',', $user->zone_assigned);
+
+            $zones = Zone::whereIn('zone', $assignedZones)->get();
+            $showAllOption = false;
+        } else {
+            $zones = Zone::all();
+            $showAllOption = true;
+        }
 
         return view('reading.index', [
             'isReRead' => $isReRead,
             'reference_no' => $reference_no,
             'zones' => $zones,
+            'showAllOption' => $showAllOption,
         ]);
-    }
 
+    }
 
 
     public function show(string $reference_no) {
@@ -158,12 +179,21 @@ class ReadingController extends Controller
     }
 
     public function report(Request $request) {
+        $user = auth()->user();
         $zone = $request->zone ?? 'all';
         $entries = $request->entries ?? 10;
         $toSearch = $request->search ?? '';
         $date = $request->date ?? $this->meterService->getLatestReadingMonth();
 
-        $zonesRaw = DB::table('concessioner_accounts')
+        $zonesQuery = DB::table('concessioner_accounts');
+
+        // 🔹 Apply technician restriction
+        if ($user->user_type === 'technician') {
+            $assignedZones = explode(',', $user->zone_assigned);
+            $zonesQuery->whereIn('zone', $assignedZones);
+        }
+
+        $zonesRaw = $zonesQuery
             ->select('zone', DB::raw('COUNT(*) as total_accounts'))
             ->groupBy('zone')
             ->get();
@@ -172,9 +202,13 @@ class ReadingController extends Controller
             ->join('concessioner_accounts', 'readings.account_no', '=', 'concessioner_accounts.account_no')
             ->select('concessioner_accounts.zone', DB::raw('COUNT(*) as read_count'))
             ->whereMonth('readings.created_at', Carbon::parse($date)->month)
-            ->whereYear('readings.created_at', Carbon::parse($date)->year)
-            ->groupBy('concessioner_accounts.zone')
-            ->pluck('read_count', 'zone');
+            ->whereYear('readings.created_at', Carbon::parse($date)->year);
+
+        if ($user->user_type === 'technician') {
+            $readingsPerZone->whereIn('concessioner_accounts.zone', $assignedZones);
+        }
+
+        $readingsPerZone = $readingsPerZone->groupBy('concessioner_accounts.zone')->pluck('read_count', 'zone');
 
         $zoneAreas = DB::table('zones')->pluck('area', 'zone');
 
@@ -199,7 +233,6 @@ class ReadingController extends Controller
 
         return view('reading.report', compact('data', 'entries', 'zones', 'zone', 'date', 'toSearch'));
     }
-
 
 
     public function store(Request $request) {
@@ -450,28 +483,38 @@ class ReadingController extends Controller
 
 
     public function datatable($query)
-    {
-        return DataTables::of($query)
-            ->addIndexColumn()
-            ->editColumn('account_no', function ($row) {
-                return $row->account_no;
-            })
-            ->editColumn('created_at', function ($row) {
-                return Carbon::parse($row->created_at)->format('F d, Y');
-            })
-            ->addColumn('actions', function ($row) {
-                return
-                    '<div class="d-flex align-items-center gap-2">
-                        <a href="' . route('reading.show', $row->bill->reference_no) . '"
-                            class="btn btn-primary text-white text-uppercase fw-bold"
-                            id="show-btn" data-id="' . e($row->id) . '">
-                            <i class="bx bx-receipt"></i>
-                        </a>
-                    </div>';
-            })
-            ->rawColumns(['actions'])
-            ->make(true);
+{
+    $user = auth()->user();
+
+    if ($user->user_type === 'technician') {
+        $assignedZones = explode(',', $user->zone_assigned);
+        $query->whereHas('account', function ($q) use ($assignedZones) {
+            $q->whereIn('zone', $assignedZones);
+        });
     }
+
+    return DataTables::of($query)
+        ->addIndexColumn()
+        ->editColumn('account_no', function ($row) {
+            return $row->account_no;
+        })
+        ->editColumn('created_at', function ($row) {
+            return Carbon::parse($row->created_at)->format('F d, Y');
+        })
+        ->addColumn('actions', function ($row) {
+            return
+                '<div class="d-flex align-items-center gap-2">
+                    <a href="' . route('reading.show', $row->bill->reference_no) . '"
+                        class="btn btn-primary text-white text-uppercase fw-bold"
+                        id="show-btn" data-id="' . e($row->id) . '">
+                        <i class="bx bx-receipt"></i>
+                    </a>
+                </div>';
+        })
+        ->rawColumns(['actions'])
+        ->make(true);
+    }
+
 
     public function create_breakdown(array $data) {
         try {

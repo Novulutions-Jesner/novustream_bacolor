@@ -11,7 +11,7 @@
             </div>
             <div class="inner-content mt-5 pb-5 mb-5">
                 <form action="{{route('payments.pay', ['reference_no' => $reference_no]) }}" method="POST">
-                    @csrf  
+                    @csrf
                     <div class="row">
                         <div class="col-12 col-md-6">
                             <div id="bill" style="margin-top: 30px">
@@ -31,7 +31,7 @@
                                     <div style="text-align: center; margin-top: 18px; margin-bottom: 10px; padding-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 15px;">
                                         <div>
                                             <img src="{{ asset('images/client.png')}}"
-                                                style="width: 90px; margin: 0 auto 10px auto" 
+                                                style="width: 90px; margin: 0 auto 10px auto"
                                                 alt="logo" class="web-logo">
                                         </div>
                                         <div style="width: fit-content;">
@@ -42,11 +42,11 @@
                                             <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Cell No. 09190644815</p>
                                             <p style="font-size: 12px; text-transform: uppercase; margin: 0;">TIN 003 878 306 000 Non VAT</p>
                                         </div>
-                                    </div> 
+                                    </div>
                                         <div style="text-align:center; text-transform: uppercase; font-size: 16px; margin: 10px 0 10px 0;">
                                             <p style="font-size: 22px; text-transform: uppercase; margin: 0; text-transform: uppercase; font-weight: 600">Statement of Account</p>
                                         </div>
-                                        <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                                     
+                                        <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>
                                         <div>
                                             <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
                                                 <div class="oversized" style="margin: 4px 0 0 0; display: flex; gap: 5px; align-items: center;">
@@ -62,13 +62,13 @@
                                                 <div style="margin: 4px 0 0 0; display: flex; gap: 10px;">
                                                     <div style="font-size: 18px;">Meter No: </div>
                                                     <div style="font-size: 18px;">{{$data['client']['meter_serial_no']}}</div>
-                                                </div>                
+                                                </div>
                                             </div>
                                         </div>
                                         <div>
                                             <div style="width: 100%; height: 1px; margin: 15px 0 10px 0; border-bottom: 1px dashed black; position: relative; display: flex; justify-content: center; align-items: center;">
                                                 <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 0px; margin-top: 10px; position: absolute; top: -17px; background-color: #fff; padding: 0 10px 0 10px;">Current Billing Info</h6>
-                                            </div>                    
+                                            </div>
                                             <div style="text-align: center; text-transform: uppercase;">
                                                 <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                                     <div>Bill Date</div>
@@ -94,7 +94,7 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
+                                        <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>
                                         <div>
                                             <div style="display: flex; justify-content: space-between;">
                                                 <div style="text-transform: uppercase">Previous Reading</div>
@@ -109,7 +109,7 @@
                                                 <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">{{$data['current_bill']['reading']['consumption'] ?? '0'}}</div>
                                             </div>
                                         </div>
-                                        <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                                        <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                         <div>
 
                                             @php
@@ -157,7 +157,7 @@
                                                 <div style="text-transform: uppercase;">0</div>
                                             </div>
                                         </div>
-                                        <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                                        <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                         <div class="oversized" style="display: flex; justify-content: space-between; margin: 5px 0 5px 0;">
                                             <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">Current Billing:</div>
                                             <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">{{(float) $data['current_bill']['total'] - (float) $arrears - (float) $totalDiscount}}</div>
@@ -168,7 +168,7 @@
                                                 <div style="text-transform: uppercase;">{{$arrears}}</div>
                                             </div>
                                         @endif
-                                        <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                                        <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                         <div class="oversized" style="display: flex; justify-content: space-between; align-items: center;">
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount Due:</div>
                                             <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">{{number_format($data['current_bill']['amount'], 2)}} </div>
@@ -195,8 +195,8 @@
                                                 {{number_format($data['current_bill']['assumed_amount_after_due'], 2)}}
                                             </div>
                                         </div>
-                                        <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
-                                        <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                                        <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
+                                        <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                         <h6 style="font-weight: bold; text-transform: uppercase; text-align: center; margin-top: 10px; margin-bottom: 10px;">6 months Consumption History</h6>
                                         <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; text-transform: uppercase;">
                                             @foreach($data['previousConsumption'] as $prevConsump)
@@ -225,7 +225,7 @@
                                             <div style="text-transform: uppercase;">Time Stamp: </div>
                                             <div style="text-transform: uppercase;">{{\Carbon\Carbon::now()->format('D M d H:i:s \G\M\TP Y')}}</div>
                                         </div>
-                                        <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                                        <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                         <div style="margin-top: 15px; display: flex; justify-content: center; gap: 35px; align-items: center;">
                                             <div>
                                                 {!! $qr_code !!}
@@ -237,10 +237,10 @@
                                                     <li>Choose a merchant on NovuPay.</li>
                                                     <li>Pay the total amount due.</li>
                                                     <li>Keep your receipt.</li>
-                                                </ol>                            
+                                                </ol>
                                             </div>
                                         </div>
-                                    
+
                                         @php
                                             $bill = $data['current_bill']['created_at'] ?? null;
                                             $start = $data['client']['sc_discount']['effective_date'] ?? null;
@@ -276,15 +276,15 @@
                                         <div style="margin: 30px 0 0 0; display: flex; justify-content: center; align-items: center;">
                                             <div style="background-color: #000; padding: 8px 10px 8px 10px; color: #fff; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 20px;">This is NOT valid as Official Receipt</div>
                                         </div>
-                                        <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
-                                    </div>                    
+                                        <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-12 col-md-6"> 
+                        <div class="col-12 col-md-6">
                             @if(!$data['current_bill']['isPaid'])
                                 <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
-                                    Total Amount Due: 
+                                    Total Amount Due:
                                     <h3 class="ms-2">
                                         PHP {{number_format((float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'] ?? 0, 2)}}
                                     </h3>
@@ -311,11 +311,11 @@
                                                     $current_billing = (float)$data['current_bill']['amount'] - (float) $data['current_bill']['previous_unpaid'];
                                                     $hasAdvancePayment = $data['current_bill']['isChangeForAdvancePayment'];
                                                     $advancePayment = (float) $data['current_bill']['advances'] ?? 0;
-                                                    
+
                                                     if($hasAdvancePayment) {
                                                         $current_billing =  $current_billing + $advancePayment;
-                                                    }                    
-                                                @endphp 
+                                                    }
+                                                @endphp
                                                 <h2 class="fw-bold">PHP {{number_format($current_billing, 2)}}</h2>
                                             </div>
                                             @if($hasAdvancePayment)
@@ -445,7 +445,7 @@
             let changeAmount = '';
 
             $('#payment_amount')
-                .val('0') 
+                .val('0')
                 .on('focus', function () {
                     if ($(this).val() === '0') {
                         $(this).val('');

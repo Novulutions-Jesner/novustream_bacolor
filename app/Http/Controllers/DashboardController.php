@@ -37,15 +37,15 @@ class DashboardController extends Controller
 
         // Safely calculate totals with casting to float
         $total_transactions = $readings->sum(fn($reading) => (float) ($reading['bill']['amount'] ?? 0));
-        
+
         $total_unpaid = $readings
             ->where('bill.isPaid', false)
             ->sum(fn($r) => (float) ($r['bill']['amount'] ?? 0));
-        
+
         $total_paid = $readings
             ->where('bill.isPaid', true)
             ->sum(fn($r) => (float) ($r['bill']['amount'] ?? 0));
-        
+
         $total_payments = $readings->sum(fn($r) => (float) ($r['bill']['amount'] ?? 0));
 
         $data = [

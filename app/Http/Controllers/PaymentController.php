@@ -93,10 +93,10 @@ class PaymentController extends Controller
         $sheetNames = $spreadsheet->getSheetNames();
 
         $expectedHeaders = [
-            'reference_no', 'account_no', 'billing_from', 'billing_to', 'previous_reading',
-            'present_reading', 'consumption', 'penalty', 'unpaid', 'amount',
-            'amount_paid', 'change', 'date_paid', 'due_date', 'payor_name',
-            'payment_reference_no',
+            'reference_no', 'account_no', 'billing_from', 'billing_to',
+            'previous_reading', 'present_reading', 'consumption', 'penalty',
+            'unpaid', 'arrears', 'current_bill', 'amount_paid',
+            'date_paid', 'due_date', 'payor_name', 'payment_reference_no',
         ];
 
         $allMessages = [];
@@ -104,16 +104,48 @@ class PaymentController extends Controller
 
         $headingData = (new HeadingRowImport(2))->toArray($file);
 
+        $normalizeHeader = function ($header) {
+            $h = (string)$header;
+            $h = trim($h);
+            $h = strtolower(preg_replace('/[^a-z0-9]+/i', '_', $h));
+            $h = preg_replace('/_+/', '_', $h);
+            $h = trim($h, '_');
+            return $h;
+        };
+
         foreach ($sheetNames as $index => $sheetName) {
-            $actualHeaders = array_map('strtolower', array_map('trim', $headingData[$index][0] ?? []));
-            $missing = array_diff($expectedHeaders, $actualHeaders);
+            $rawHeadersRow = $headingData[$index][0] ?? [];
+
+            $normalizedHeaders = [];
+            foreach ($rawHeadersRow as $h) {
+                $n = $normalizeHeader($h);
+                if (!empty($n)) {
+                    $normalizedHeaders[] = $n;
+                }
+            }
+
+            if (empty($normalizedHeaders) && !empty($headingData[$index])) {
+                foreach ($headingData[$index] as $possibleRow) {
+                    if (!empty($possibleRow) && is_array($possibleRow)) {
+                        foreach ($possibleRow as $h) {
+                            $n = $normalizeHeader($h);
+                            if (!empty($n)) {
+                                $normalizedHeaders[] = $n;
+                            }
+                        }
+                        if (!empty($normalizedHeaders)) break;
+                    }
+                }
+            }
+
+            $missing = array_values(array_diff($expectedHeaders, $normalizedHeaders));
 
             if (!empty($missing)) {
                 $allMessages[] = [
                     'sheet' => $sheetName,
                     'status' => 'error',
                     'message' => 'Missing headers in sheet.',
-                    'missing_headers' => array_values($missing),
+                    'missing_headers' => $missing,
                 ];
                 continue;
             }
@@ -158,7 +190,7 @@ class PaymentController extends Controller
                 if (!empty($failureErrors) || !empty($skippedRows)) {
                     $message = [];
                     if (!empty($failureErrors)) {
-                        $message[] = count($failureErrors) . ' skipped due to logic checks';
+                        $message[] = count($failureErrors) . ' skipped due to validation';
                     }
                     if (!empty($skippedRows)) {
                         $message[] = count($skippedRows) . ' skipped due to logic checks';
@@ -196,10 +228,6 @@ class PaymentController extends Controller
                     'errors' => $messages,
                 ];
             } catch (\Exception $e) {
-                \Log::error("Import error on sheet '$sheetName': " . $e->getMessage(), [
-                    'trace' => $e->getTraceAsString()
-                ]);
-
                 $allMessages[] = [
                     'sheet' => $sheetName,
                     'status' => 'error',
@@ -214,6 +242,7 @@ class PaymentController extends Controller
             'messages' => $allMessages,
         ]);
     }
+
 
    public function pay(Request $request, string $reference_no)  {
     if ($request->isMethod('post')) {
@@ -239,10 +268,13 @@ class PaymentController extends Controller
         ]);
     }
 
-    // Prevent duplicate payment session
-    if (!is_null($data['active_payment'])) {
-        return redirect()->route('payments.pay', ['reference_no' => $data['active_payment']['reference_no']]);
-    }
+        if (!is_null($data['active_payment'])
+            && $data['active_payment']['reference_no'] !== $reference_no) {
+            $alert = [
+                'status' => 'warning',
+                'message' => 'This account has another active payment. Showing requested bill anyway.'
+            ];
+        }
 
     // ======== QR CODE (for walk-in / display) ========
     $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
@@ -303,13 +335,9 @@ class PaymentController extends Controller
 
         $amount = (float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'];
         $change = (float) $payload['payment_amount'] - $amount;
-        $forAdvancePayment = isset($payload['for_advances']) && $payload['for_advances'] ? true : false;
+        $forAdvancePayment = isset($payload['for_advances']) && $payload['for_advances'];
 
-        $saveChange = false;
-
-        if($change != 0 && $forAdvancePayment) {
-            $saveChange = true;
-        }
+        $saveChange = ($change != 0 && $forAdvancePayment);
 
         $currentBill = Bill::find($data['current_bill']['id']);
 
@@ -320,14 +348,14 @@ class PaymentController extends Controller
                 'change' => $change,
                 'payor_name' => $payload['payor'],
                 'date_paid' => $now,
-                'isChangeForAdvancePayment' => $saveChange
+                'isChangeForAdvancePayment' => $saveChange,
+                'payment_method' => 'cash',
             ]);
         }
 
         if (!empty($data['unpaid_bills'])) {
             foreach ($data['unpaid_bills'] as $unpaid_bill) {
                 $unpaidBill = Bill::find($unpaid_bill['id']);
-
                 if ($unpaidBill) {
                     $unpaidBill->update([
                         'payor_name' => $payload['payor'],
@@ -335,7 +363,7 @@ class PaymentController extends Controller
                         'isPaid' => true,
                         'amount_paid' => $payload['payment_amount'],
                         'change' => $change,
-                        'paid_by_reference_no' => $reference_no
+                        'paid_by_reference_no' => $reference_no,
                     ]);
                 }
             }
@@ -462,27 +490,35 @@ class PaymentController extends Controller
     public function callback(Request $request, string $reference_no) {
 
         $payload = $request->all();
-
         $bill = $this->meterService->getBill($reference_no);
 
         if($bill) {
 
             $now = Carbon::now()->format('Y-m-d H:i:s');
 
-            $bill['current_bill']->update([
-                'isPaid' => true,
-                'amount_paid' => $payload['amount'],
-                'date_paid' => $now,
-            ]);
+            $currentBill = Bill::find($bill['current_bill']['id']);
+            if ($currentBill) {
+                $currentBill->update([
+                    'isPaid' => true,
+                    'amount_paid' => $payload['amount'],
+                    'date_paid' => $now,
+                    'payment_method' => 'online',
+                ]);
+            }
 
+            // Update unpaid bills if needed
             if (!empty($bill['unpaid_bills'])) {
                 foreach ($bill['unpaid_bills'] as $unpaid_bill) {
-                    $unpaid_bill->update([
-                        'isPaid' => true,
-                        'amount_paid' => $payload['amount'],
-                        'date_paid' => $now,
-                        'paid_by_reference_no' => $reference_no
-                    ]);
+                    $unpaidBill = Bill::find($unpaid_bill['id']);
+                    if ($unpaidBill) {
+                        $unpaidBill->update([
+                            'isPaid' => true,
+                            'amount_paid' => $payload['amount'],
+                            'date_paid' => $now,
+                            'paid_by_reference_no' => $reference_no,
+                            'payment_method' => 'online',
+                        ]);
+                    }
                 }
             }
 
@@ -496,7 +532,6 @@ class PaymentController extends Controller
             'status' => 'error',
             'message' => 'Payment not found'
         ], 404);
-
     }
 
     public function datatable($query) {

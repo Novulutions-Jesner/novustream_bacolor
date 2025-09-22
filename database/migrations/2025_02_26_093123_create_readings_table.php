@@ -75,6 +75,8 @@ return new class extends Migration
                 ->default(false);
             $table->boolean('isHighConsumption')
                 ->default(false);
+            $table->enum('payment_method', ['cash', 'online'])
+                ->nullable();
             $table->timestamps();
         });
 

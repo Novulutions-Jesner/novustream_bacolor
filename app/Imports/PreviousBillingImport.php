@@ -28,7 +28,6 @@ class PreviousBillingImport implements
 
     protected $skippedRows = [];
     protected $rowCounter = 3;
-
     protected $sheetName;
 
     public function __construct($sheetName)
@@ -43,72 +42,97 @@ class PreviousBillingImport implements
             'account_no'        => ['required'],
             'billing_from'      => ['required'],
             'billing_to'        => ['required'],
-            'amount'            => ['required'],
+            'current_bill'      => ['nullable', 'numeric'],
+            'arrears'           => ['nullable', 'numeric'],
 
             'previous_reading'  => ['nullable', 'numeric'],
             'present_reading'   => ['nullable', 'numeric'],
             'consumption'       => ['nullable', 'numeric'],
+            'penalty'           => ['nullable', 'numeric'],
+            'unpaid'            => ['nullable', 'numeric'],
+            'amount_paid'       => ['nullable', 'numeric'],
         ];
     }
 
     public function customValidationMessages(): array
     {
         return [
-            'reference_no.required'     => 'Missing required field: reference_no',
-            'account_no.required'       => 'Missing required field: account_no',
-            'billing_from.required'     => 'Missing required field: billing_from',
-            'billing_to.required'       => 'Missing required field: billing_to',
-            'amount.required'           => 'Missing required field: amount',
-
-            'previous_reading.numeric'  => 'previous_reading must be numeric',
-            'present_reading.numeric'   => 'present_reading must be numeric',
-            'consumption.numeric'       => 'consumption must be numeric',
+            'reference_no.required' => 'Missing required field: reference_no',
+            'account_no.required'   => 'Missing required field: account_no',
+            'billing_from.required' => 'Missing required field: billing_from',
+            'billing_to.required'   => 'Missing required field: billing_to',
         ];
     }
 
     public function model(array $row)
     {
         $rowNum = $this->rowCounter++;
-        $row = array_map('trim', $row);
+        $row = array_map(function ($v) {
+            return is_string($v) ? trim($v) : $v;
+        }, $row);
 
-        $billing_from = $this->transformDate($row['billing_from']);
-        $billing_to = $this->transformDate($row['billing_to']);
-        $zone = $this->sheetName;
+        $get = function ($keys, $default = null) use ($row) {
+            foreach ((array)$keys as $k) {
+                if (array_key_exists($k, $row) && $row[$k] !== null && $row[$k] !== '') {
+                    return $row[$k];
+                }
+            }
+            return $default;
+        };
+
+        $billing_from = $this->transformDate($get(['billing_from']));
+        $billing_to   = $this->transformDate($get(['billing_to']));
+        $zone         = $this->sheetName;
 
         $reading_id = Reading::insertGetId([
-            'zone' => $zone ?? null,
-            'account_no' => $row['account_no'],
-            'previous_reading' => $row['previous_reading'] ?? null,
-            'present_reading' => $row['present_reading'] ?? null,
-            'consumption' => $row['consumption'] ?? null,
-            'created_at' => $billing_from,
-            'updated_at' => $billing_from,
+            'zone'             => $zone ?? null,
+            'account_no'       => $get(['account_no']),
+            'previous_reading' => $get(['previous_reading']),
+            'present_reading'  => $get(['present_reading']),
+            'consumption'      => $get(['consumption']),
+            'created_at'       => $billing_from,
+            'updated_at'       => $billing_from,
         ]);
 
+        $currentBillValue = $get(['current_bill']);
+        $arrearsValue = $get(['arrears', 'unpaid']);
+
+        $amount = null;
+        if ($currentBillValue !== null && $currentBillValue !== '') {
+            $amount = $this->cleanAmount($currentBillValue);
+        } elseif ($arrearsValue !== null && $arrearsValue !== '') {
+            $amount = $this->cleanAmount($arrearsValue);
+        }
+
+        if ($amount === null && isset($row['arrears'], $row['current_bill'])) {
+            $amount = $this->cleanAmount($row['arrears']) + $this->cleanAmount($row['current_bill']);
+        }
+
         $bill = Bill::create([
-            'reading_id' => $reading_id,
-            'reference_no' => $row['reference_no'],
+            'reading_id'       => $reading_id,
+            'reference_no'     => $get(['reference_no']),
             'bill_period_from' => $billing_from,
-            'bill_period_to' => $billing_to,
-            'previous_unpaid' => $this->cleanAmount($row['unpaid'] ?? 0),
-            'penalty' => $this->cleanAmount($row['penalty'] ?? 0),
-            'amount' => $this->cleanAmount($row['amount']),
-            'amount_paid' => $this->cleanAmount($row['amount_paid'] ?? 0),
-            'change' => $this->cleanAmount($row['change'] ?? 0),
-            'isPaid' => !empty($row['amount_paid']) ? 1 : 0,
-            'date_paid' => $this->transformDate($row['date_paid'] ?? null),
-            'due_date' => $this->transformDate($row['due_date'] ?? null),
-            'payor_name' => $row['payor_name'] ?? null,
+            'bill_period_to'   => $billing_to,
+            'previous_unpaid'  => $this->cleanAmount($get(['unpaid', 'arrears']) ?? 0),
+            'penalty'          => $this->cleanAmount($get(['penalty']) ?? 0),
+            'amount'           => $amount,
+            'amount_paid'      => $this->cleanAmount($get(['amount_paid']) ?? 0),
+            'change'           => $this->cleanAmount($get(['change']) ?? 0),
+            'isPaid'           => !empty($get(['amount_paid'])) ? 1 : 0,
+            'date_paid'        => $this->transformDate($get(['date_paid'])),
+            'due_date'         => $this->transformDate($get(['due_date'])),
+            'payor_name'       => $get(['payor_name']),
         ]);
 
         $payload = [
-            'account_no' => $row['account_no'],
-            'previous_unpaid' => $this->cleanAmount($row['amount_paid'] ?? 0),
-            'basic_charge' => $this->cleanAmount($row['amount']),
+            'account_no' => $get(['account_no']),
+            'previous_unpaid' => $this->cleanAmount($get(['amount_paid']) ?? 0),
+            'basic_charge' => $this->cleanAmount($amount),
             'date' => $billing_from,
         ];
 
         $breakdowns = $this->create_breakdown($payload);
+
         foreach ($breakdowns['deductions'] as $deduction) {
             BillBreakdown::insert([
                 'bill_id' => $bill->id,
@@ -210,7 +234,8 @@ class PreviousBillingImport implements
 
     protected function cleanAmount($value)
     {
-        $clean = str_replace(',', '', trim($value));
+        if ($value === null) return 0;
+        $clean = str_replace([',', ' '], ['', ''], trim((string)$value));
         return is_numeric($clean)
             ? (fmod(floatval($clean), 1.0) === 0.0 ? (int)$clean : floatval($clean))
             : $clean;
@@ -235,5 +260,4 @@ class PreviousBillingImport implements
     {
         return $this->rowCounter;
     }
-
 }
