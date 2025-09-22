@@ -16,14 +16,14 @@ class DatabaseSeeder extends Seeder
         $this->call([
             AccountSeeder::class,
             RoleSeeder::class,
-            //PropertyTypeSeeder::class,
+            PropertyTypeSeeder::class,
             TicketsCategorySeeder::class,
             BaseRateSeeder::class,
-            //RateSeeder::class,
-            //BillSeeder::class,
-            //ConcessionerAccountSeeder::class,
-            //UserSeeder::class,
-            //ZoneSeeder::class,
+            RateSeeder::class,
+            BillSeeder::class,
+            ConcessionerAccountSeeder::class,
+            UserSeeder::class,
+            ZoneSeeder::class,
         ]);
 
     }
