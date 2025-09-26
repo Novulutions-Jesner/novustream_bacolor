@@ -22,6 +22,8 @@ use Illuminate\Support\Facades\Log;
 use App\Models\Zone; // make sure this is at the top
 use App\Models\PaymentDiscount;
 use App\Models\BillDiscount;
+use App\Models\Discount;
+use App\Models\DiscountType;
 
 
 class ReadingController extends Controller
@@ -380,36 +382,63 @@ class ReadingController extends Controller
             ]
         );
 
-        $accountDiscountType = $account->discount_type ?? null;
+        $today = Carbon::today();
 
-$seniorDiscount = 0;
-$franchiseAmount = 0;
+        $discountRecord = Discount::where('account_no', $account->account_no)
+            ->whereDate('effective_date', '<=', $today)
+            ->whereDate('expired_date', '>=', $today)
+            ->first();
 
-if ($accountDiscountType == 1) {
-    // Apply Senior Discount
-    $seniorDiscount = $this->paymentBreakdownService->applyDiscount($bill, $basicCharge, $totalAmount);
-}
+        Log::info('Checking discount record', [
+            'account_no' => $account->account_no,
+            'record' => $discountRecord ? $discountRecord->toArray() : null,
+            'type_id' => $discountRecord ? $discountRecord->discount_type_id : null,
+        ]);
 
-$bill->discount = $seniorDiscount;
-$bill->amount_after_due = $bill->amount - $seniorDiscount;
-$bill->save();
+        if ($discountRecord && $discountRecord->discount_type_id) {
+            $discountTypeRow = DiscountType::find($discountRecord->discount_type_id);
+            Log::info('DiscountTypeRow', [
+                'discount_type_row' => $discountTypeRow ? $discountTypeRow->toArray() : null
+            ]);
 
-// Apply Franchise Discount separately
-$franchiseDiscount = PaymentDiscount::where('eligible', 'franchise')->first();
-if ($franchiseDiscount) {
-    $franchiseAmount = round(($bill->amount - $seniorDiscount) * $franchiseDiscount->amount, 2);
+            // Senior Discount
+            if ($discountRecord->discount_type_id == 1) {
+                $seniorDiscount = PaymentDiscount::where('eligible', 'senior')->first();
 
-    BillDiscount::create([
-        'bill_id' => $bill->id,
-        'name' => $franchiseDiscount->name,
-        'description' => $franchiseDiscount->type ?? null,
-        'amount' => $franchiseAmount
-    ]);
+                if ($seniorDiscount && isset($seniorDiscount->amount)) {
+                    $seniorAmount = round($bill->amount * floatval($seniorDiscount->amount), 2);
 
-    $bill->discount += $franchiseAmount;
-    $bill->amount_after_due -= $franchiseAmount;
-    $bill->save();
-}
+                    BillDiscount::create([
+                        'bill_id' => $bill->id,
+                        'name' => $seniorDiscount->name,
+                        'description' => $seniorDiscount->type ?? null,
+                        'amount' => $seniorAmount,
+                    ]);
+
+                    Log::info('Senior discount applied', ['amount' => $seniorAmount]);
+                }
+            }
+
+            // Franchise Discount
+            if ($discountRecord->discount_type_id == 2) {
+                $franchiseDiscount = PaymentDiscount::where('eligible', 'franchise')->first();
+
+                if ($franchiseDiscount && isset($franchiseDiscount->amount)) {
+                    $franchiseAmount = round($bill->amount * floatval($franchiseDiscount->amount), 2);
+
+                    BillDiscount::create([
+                        'bill_id' => $bill->id,
+                        'name' => $franchiseDiscount->name,
+                        'description' => $franchiseDiscount->type ?? null,
+                        'amount' => $franchiseAmount,
+                    ]);
+
+                    Log::info('Franchise discount applied', ['amount' => $franchiseAmount]);
+                }
+            }
+        } else {
+            Log::info('No valid discount for this account', ['account_no' => $account->account_no]);
+        }
 
         // Generate payment QR
         $paymentPayload = [

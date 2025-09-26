@@ -636,16 +636,20 @@ class MeterService {
         $appliedDiscounts = [];
         $discountAmount = 0;
 
-        foreach ($discounts as $discount) {
+        // start with total (before discounts)
+        $overall_total = $total;
 
+        foreach ($discounts as $discount) {
             $isEligible = false;
 
-            if ($discount->eligible === 'senior' && $isSeniorCitizen && $sc_discount_start && $sc_discount_end) {
-                $billDate = Carbon::parse($payload['date']);
-                $scStartDate = Carbon::parse($sc_discount_start);
-                $scEndDate = Carbon::parse($sc_discount_end);
+            if ($discount->eligible === 'senior') {
+                if ($isSeniorCitizen && $sc_discount_start && $sc_discount_end) {
+                    $billDate = Carbon::parse($payload['date']);
+                    $scStartDate = Carbon::parse($sc_discount_start);
+                    $scEndDate = Carbon::parse($sc_discount_end);
 
-                $isEligible = $billDate->between($scStartDate, $scEndDate);
+                    $isEligible = $billDate->between($scStartDate, $scEndDate);
+                }
             }
 
             if (!$isEligible || $consumption > $ruling->snr_dc_rule) {
@@ -653,23 +657,27 @@ class MeterService {
             }
 
             if (strtolower($discount->type) === 'percentage') {
-                $discountAmount = $basic_charge * ($discount->amount);
+                $base_amount = ($discount->percentage_of === 'basic_charge')
+                    ? $basic_charge
+                    : $total_amount;
+
+                $discountAmount = round($base_amount * floatval($discount->amount), 2);
             } else {
                 $discountAmount = $discount->amount;
             }
 
-            $overall_total = $total - $discountAmount;
-
-            $appliedDiscounts[] = [
-                'name' => $discount->name,
-                'amount' => $discountAmount,
-                'description' => '',
-            ];
+            //Prevent duplicate Senior Discount
+            if ($discount->eligible !== 'senior' && $discountAmount > 0) {
+                $appliedDiscounts[] = [
+                    'name' => $discount->name,
+                    'amount' => $discountAmount,
+                    'description' => '',
+                ];
+            }
         }
 
-        $overall_total = $discountAmount == 0 ? $total : $overall_total;
-        $overall_total = $overall_total - $advances;
-
+        // subtract advances last
+        $overall_total -= $advances;
         $arrears = collect($deductions)
             ->firstWhere('name', 'Previous Balance')['amount'] ?? 0;
 

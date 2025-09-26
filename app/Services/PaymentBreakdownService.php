@@ -257,20 +257,27 @@ class PaymentBreakdownService {
 
     }
 
-   public function applyDiscount($bill, $basicCharge, $totalAmount)
-{
-    $discounts = PaymentDiscount::whereIn('eligible', ['senior', 'franchise'])->get();
-    $totalDiscount = 0;
-
-    foreach ($discounts as $d) {
-        if ($d->eligible == 'senior') {
-            $totalDiscount += $totalAmount * $d->amount;
-        } elseif ($d->eligible == 'franchise') {
-            $totalDiscount += $totalAmount * $d->amount; // <-- make sure this is included
+    public function applyDiscount($bill, $basicCharge, $totalAmount, $eligibleKey = null)
+    {
+        if (!$eligibleKey) {
+            return 0;
         }
+        $d = PaymentDiscount::where('eligible', $eligibleKey)->first();
+        if (!$d) {
+            return 0;
+        }
+
+        if ($d->type === 'percentage') {
+            if ($eligibleKey === 'senior') {
+                $base = $bill->amount; // always total for seniors
+            } else {
+                $base = ($d->percentage_of === 'total_amount') ? $bill->amount : $basicCharge;
+            }
+            return round($base * $d->amount, 2);
+        }
+
     }
 
-    return $totalDiscount;
-}
+
 
 }

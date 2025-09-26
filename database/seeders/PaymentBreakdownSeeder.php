@@ -29,7 +29,7 @@ class PaymentBreakdownSeeder extends Seeder
                 'amount' => 0
             ], [
                 'name' => 'Materials',
-                'type' => 'fixed',  
+                'type' => 'fixed',
                 'amount' => 0
             ], [
                 'name' => 'Reconnection Fee',
