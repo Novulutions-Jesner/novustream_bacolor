@@ -11,7 +11,7 @@ class Discount extends Model
     protected $fillable = [
         'account_no',
         'id_no',
-        'discount_type',
+        'discount_type_id',
         'effective_date',
         'expired_date',
     ];
