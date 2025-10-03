@@ -32,9 +32,9 @@ class SCDiscountImport implements
     {
         return [
             'account_no' => ['required'],
-            'id_no' => ['required'],
-            'effectivity_date' => ['required'],
-            'expired_date' => ['required'],
+            // 'id_no' => ['required'],
+            // 'effectivity_date' => ['required'],
+            // 'expired_date' => ['required'],
             'type' => ['required'],
         ];
     }
@@ -43,9 +43,9 @@ class SCDiscountImport implements
     {
         return [
             'account_no.required' => 'Missing required field: account_no',
-            'id_no.required' => 'Missing required field: id_no',
-            'effectivity_date.required' => 'Missing required field: effectivity_date',
-            'expired_date.required' => 'Missing required field: expired_date',
+            // 'id_no.required' => 'Missing required field: id_no',
+            // 'effectivity_date.required' => 'Missing required field: effectivity_date',
+            // 'expired_date.required' => 'Missing required field: expired_date',
             'type.required' => 'Missing required field: type',
         ];
     }
