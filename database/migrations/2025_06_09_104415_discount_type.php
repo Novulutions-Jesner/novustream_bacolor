@@ -11,13 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('senior_discount', function (Blueprint $table) {
+        Schema::create('discount_type', function (Blueprint $table) {
             $table->id();
-            $table->string('account_no');
-            $table->string('id_no');
-            $table->string('effective_date');
-            $table->string('expired_date');
-            $table->timestamps();
+            $table->string('discount_name');
         });
     }
 
@@ -26,6 +22,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('senior_discount');
+        Schema::dropIfExists('discount_type');
     }
 };

@@ -18,4 +18,8 @@ class PaymentDiscount extends Model
         'amount'
     ];
 
+    public function discountType()
+    {
+        return $this->hasOne(DiscountType::class, 'discount_name', 'name');
+    }
 }

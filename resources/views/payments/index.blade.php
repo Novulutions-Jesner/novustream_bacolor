@@ -6,14 +6,14 @@
             <div class="main-header d-flex justify-content-between">
                 <h1>{{$filter}} Bills</h1>
                 <div class="d-flex align-items-center gap-3">
-                    <a href="{{ route('previous-billing.upload') }}" 
+                    <a href="{{ route('previous-billing.upload') }}"
                         class="btn btn-outline-primary px-5 py-3 text-uppercase">
                          Upload Billing
-                     </a>     
-                    <a href="{{ route('payments.index', ['filter' => $filter === 'paid' ? 'unpaid' : 'paid']) }}" 
+                     </a>
+                    <a href="{{ route('payments.index', ['filter' => $filter === 'paid' ? 'unpaid' : 'paid']) }}"
                         class="btn btn-primary px-5 py-3 text-uppercase">
                          View {{ $filter === 'paid' ? 'Unpaid' : 'Paid' }}
-                     </a>                     
+                     </a>
                 </div>
             </div>
             <div class="inner-content mt-5 pb-5 mb-5">
@@ -53,19 +53,19 @@
                     <div class="col-12 col-md-3">
                         <label class="mb-1">Search <span class="text-muted ms-1">[account no]</span></label>
                         <div class="position-relative">
-                            <input 
-                                type="text" 
-                                name="search" 
-                                id="search" 
-                                class="form-control pe-5" 
-                                value="{{ $toSearch }}" 
+                            <input
+                                type="text"
+                                name="search"
+                                id="search"
+                                class="form-control pe-5"
+                                value="{{ $toSearch }}"
                                 placeholder=""
                             >
 
                             @if(!empty($toSearch))
-                                <button 
-                                    type="button" 
-                                    id="clear-search" 
+                                <button
+                                    type="button"
+                                    id="clear-search"
                                     class="btn position-absolute top-50 end-0 translate-middle-y me-2 p-0 text-muted"
                                     style="border: none; background: none; font-size: 1.2rem;"
                                     aria-label="Clear search"
@@ -107,7 +107,7 @@
                                         @endif
                                     </td>
                                     <td>
-                                        {{ !empty($row->created_at)
+                                        {{ !empty($row->bill_period_to)
                                             ? \Carbon\Carbon::parse($row->created_at)->format('M d, Y')
                                             : 'N/A' }}
                                     </td>
@@ -174,7 +174,7 @@
         }
 
         $('#search, #entries, #filter, #zone_no, #date').on('change', updateUrl);
-    
+
         $('#clear-search').on('click', function () {
             $('#search').val('');
             updateUrl();

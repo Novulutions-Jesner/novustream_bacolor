@@ -25,5 +25,12 @@ class Account extends Model
         return $this->belongsTo(PropertyTypes::class, 'property_type', 'id');
     }
 
+    public function discount()
+    {
+        return $this->hasOne(Discount::class, 'account_no', 'account_no')
+                    ->whereDate('effective_date', '<=', now())
+                    ->whereDate('expired_date', '>=', now());
+    }
+
 
 }

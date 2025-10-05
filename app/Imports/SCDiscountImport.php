@@ -32,9 +32,10 @@ class SCDiscountImport implements
     {
         return [
             'account_no' => ['required'],
-            'id_no' => ['required'],
-            'effectivity_date' => ['required'],
-            'expired_date' => ['required'],
+            // 'id_no' => ['required'],
+            // 'effectivity_date' => ['required'],
+            // 'expired_date' => ['required'],
+            'type' => ['required'],
         ];
     }
 
@@ -42,9 +43,10 @@ class SCDiscountImport implements
     {
         return [
             'account_no.required' => 'Missing required field: account_no',
-            'id_no.required' => 'Missing required field: id_no',
-            'effectivity_date.required' => 'Missing required field: effectivity_date',
-            'expired_date.required' => 'Missing required field: expired_date',
+            // 'id_no.required' => 'Missing required field: id_no',
+            // 'effectivity_date.required' => 'Missing required field: effectivity_date',
+            // 'expired_date.required' => 'Missing required field: expired_date',
+            'type.required' => 'Missing required field: type',
         ];
     }
 
@@ -58,7 +60,7 @@ class SCDiscountImport implements
             $idNo = $row['id_no'] ?? null;
             $effectiveDate = $this->parseDate($row['effectivity_date'] ?? null);
             $expiredDate = $this->parseDate($row['expired_date'] ?? null);
-            $type = $row['type'] ?? 1;
+            $type = $row['discount_type_id'] ?? 1;
 
             if (!$accountNo || !$idNo || !$effectiveDate || !$expiredDate) {
                 $this->skippedRows[] = "Row $rowNum skipped: Missing required data.";
@@ -72,7 +74,7 @@ class SCDiscountImport implements
                     'id_no' => $idNo,
                     'effective_date' => $effectiveDate,
                     'expired_date' => $expiredDate,
-                    'type' => $type,
+                    'discount_type_id' => $type,
                 ]);
 
                 $this->updated++;
@@ -85,7 +87,7 @@ class SCDiscountImport implements
                 'id_no' => $idNo,
                 'effective_date' => $effectiveDate,
                 'expired_date' => $expiredDate,
-                'type' => $type,
+                'discount_type_id' => $type,
             ]);
         } catch (\Exception $e) {
             $this->skippedRows[] = "Row $rowNum skipped: Exception - " . $e->getMessage();

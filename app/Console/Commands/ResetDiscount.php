@@ -26,6 +26,6 @@ class ResetDiscount extends Command
      */
     public function handle()
     {
-        DB::table('senior_discount')->delete();          
+        DB::table('discount')->delete();
     }
 }

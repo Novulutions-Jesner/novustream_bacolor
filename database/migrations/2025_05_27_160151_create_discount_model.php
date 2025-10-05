@@ -16,7 +16,8 @@ return new class extends Migration
             $table->string('name');
             $table->enum('eligible', [
                 'pwd',
-                'senior'
+                'senior',
+                'franchise'
             ]);
             $table->enum('type', [
                 'percentage',
@@ -28,7 +29,7 @@ return new class extends Migration
             ])->nullable();
             $table->float('amount');
             $table->timestamps();
-        }); 
+        });
     }
 
     /**

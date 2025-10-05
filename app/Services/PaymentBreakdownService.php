@@ -7,6 +7,7 @@ use App\Models\PaymentBreakdownPenalty;
 use App\Models\PaymentDiscount;
 use App\Models\PaymentServiceFee;
 use App\Models\Ruling;
+use App\Models\Bill;
 use Illuminate\Support\Facades\DB;
 
 class PaymentBreakdownService {
@@ -255,6 +256,28 @@ class PaymentBreakdownService {
         }
 
     }
+
+    public function applyDiscount($bill, $basicCharge, $totalAmount, $eligibleKey = null)
+    {
+        if (!$eligibleKey) {
+            return 0;
+        }
+        $d = PaymentDiscount::where('eligible', $eligibleKey)->first();
+        if (!$d) {
+            return 0;
+        }
+
+        if ($d->type === 'percentage') {
+            if ($eligibleKey === 'senior') {
+                $base = $bill->amount; // always total for seniors
+            } else {
+                $base = ($d->percentage_of === 'total_amount') ? $bill->amount : $basicCharge;
+            }
+            return round($base * $d->amount, 2);
+        }
+
+    }
+
 
 
 }

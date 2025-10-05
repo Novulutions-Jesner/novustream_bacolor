@@ -17,7 +17,7 @@
                 </h1>
 
                  @if($viewer == 'bills')
-                    <a href="{{ route('account-overview.bills') }}" 
+                    <a href="{{ route('account-overview.bills') }}"
                         class="btn btn-outline-primary px-5 py-3 text-uppercase">
                         Go Back
                     </a>
@@ -28,21 +28,21 @@
                         @php
                             $backUrl = route('account-overview.bills', ['account_no' => $data['client']['account_no'], 'view' => 'unpaid']);
                         @endphp
-                
-                        <a href="{{ $backUrl }}" 
+
+                        <a href="{{ $backUrl }}"
                             style="border: 1px solid #32667e; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; text-decoration: none; color: #32667e; background-color: transparent; border-radius: 5px; font-weight: bold;"
                             class="btn btn-outline-primary px-5 py-3 text-uppercase">
                             <i style="font-size: 18px;" class='bx bx-left-arrow-alt'></i> Go Back
                         </a>
-                
-                        <button 
-                            class="download-js btn btn-primary px-5 py-3 text-uppercase" 
-                            data-target="#bill" 
-                            data-filename="{{$data['current_bill']['reference_no']}}" 
+
+                        <button
+                            class="download-js btn btn-primary px-5 py-3 text-uppercase"
+                            data-target="#bill"
+                            data-filename="{{$data['current_bill']['reference_no']}}"
                             style="background-color: #32667e; color: white; padding: 12px 40px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">
                             <i style="font-size: 18px;" class='bx bxs-download'></i> Download
                         </button>
-    
+
                     </div>
                 @endif
             </div>
@@ -69,25 +69,25 @@
                     <script>
                         $(function() {
                             const url = '{{ route(Route::currentRouteName()) }}';
-                    
+
                             let table = $('table').DataTable({
                                 processing: true,
                                 serverSide: true,
                                 ajax: url,
                                 columns: [
-                                    { data: 'id', name: 'id' }, 
-                                    { data: 'account_no', name: 'account_no' }, 
+                                    { data: 'id', name: 'id' },
+                                    { data: 'account_no', name: 'account_no' },
                                     { data: 'meter_no', name: 'meter_no' },
                                     { data: 'address', name: 'address' },
                                     { data: 'property_type', name: 'property_type' },
                                     { data: 'date_connected', name: 'date_connected' },
-                                    { data: 'actions', name: 'actions', orderable: false, searchable: false } 
+                                    { data: 'actions', name: 'actions', orderable: false, searchable: false }
                                 ],
                                 responsive: true,
                                 order: [[0, 'desc']],
                                 scrollX: true
                             });
-                    
+
                         });
                     </script>
                 @endsection
@@ -99,8 +99,8 @@
                         @foreach(['unpaid' => 'Unpaid', 'paid' => 'Paid'] as $key => $label)
                             <li class="nav-item" role="presentation">
                                 <a
-                                    class="nav-link text-uppercase  {{ $view == $key ? 'active' : '' }}" 
-                                    id="pills-{{ $key }}-tab" 
+                                    class="nav-link text-uppercase  {{ $view == $key ? 'active' : '' }}"
+                                    id="pills-{{ $key }}-tab"
                                     href="{{ route('account-overview.bills', ['account_no' => $account_no, 'view' => $key]) }}"
                                 >
                                     {{ $label }}
@@ -128,7 +128,7 @@
                     <script>
                         $(function() {
                             const url = '{{ route(Route::currentRouteName()) }}';
-                    
+
                             let table = $('table').DataTable({
                                 processing: true,
                                 serverSide: true,
@@ -140,13 +140,13 @@
                                     }
                                 },
                                 columns: [
-                                    { data: 'id', name: 'id' }, 
-                                    { data: 'billing_period', name: 'billing_period' }, 
+                                    { data: 'id', name: 'id' },
+                                    { data: 'billing_period', name: 'billing_period' },
                                     { data: 'bill_date', name: 'bill_date' },
                                     { data: 'amount', name: 'amount' },
                                     { data: 'due_date', name: 'due_date' },
                                     { data: 'status', name: 'status' },
-                                    { data: 'actions', name: 'actions', orderable: false, searchable: false } 
+                                    { data: 'actions', name: 'actions', orderable: false, searchable: false }
                                 ],
                                 responsive: true,
                                 order: [[0, 'desc']],
@@ -176,7 +176,7 @@
                                 <div style="text-align: center; margin-top: 18px; margin-bottom: 10px; padding-bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 15px;">
                                     <div>
                                         <img src="{{ asset('images/client.png')}}"
-                                            style="width: 90px; margin: 0 auto 10px auto" 
+                                            style="width: 90px; margin: 0 auto 10px auto"
                                             alt="logo" class="web-logo">
                                     </div>
                                     <div style="width: fit-content;">
@@ -187,11 +187,11 @@
                                         <p style="font-size: 12px; text-transform: uppercase; margin: 0;">Cell No. 09190644815</p>
                                         <p style="font-size: 12px; text-transform: uppercase; margin: 0;">TIN 003 878 306 000 Non VAT</p>
                                     </div>
-                                </div> 
+                                </div>
                                 <div style="text-align:center; text-transform: uppercase; font-size: 16px; margin: 10px 0 10px 0;">
                                     <p style="font-size: 22px; text-transform: uppercase; margin: 0; text-transform: uppercase; font-weight: 600">Statement of Account</p>
                                 </div>
-                                <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                                     
+                                <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>
                                 <div>
                                     <div style="font-size: 10px; text-transform: uppercase; display: flex; flex-direction: column; gap: 1px;">
                                         <div class="oversized" style="margin: 4px 0 0 0; display: flex; align-items: center;">
@@ -207,13 +207,13 @@
                                         <div style="margin: 4px 0 0 0; display: flex; gap: 10px;">
                                             <div style="font-size: 18px;">Meter No: </div>
                                             <div style="font-size: 18px;">{{$data['client']['meter_serial_no']}}</div>
-                                        </div>                
+                                        </div>
                                     </div>
                                 </div>
                                 <div>
                                     <div style="width: 100%; height: 1px; margin: 15px 0 10px 0; border-bottom: 1px dashed black; position: relative; display: flex; justify-content: center; align-items: center;">
                                         <h6 style="font-weight: bold; text-align: center; text-transform: uppercase; margin-bottom: 0px; margin-top: 10px; position: absolute; top: -17px; background-color: #fff; padding: 0 10px 0 10px;">Current Billing Info</h6>
-                                    </div>                    
+                                    </div>
                                     <div style="text-align: center; text-transform: uppercase;">
                                         <div style="margin: 4px 0 0 0; display: flex; justify-content: space-between;">
                                             <div>Bill Date</div>
@@ -239,7 +239,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>                    
+                                <div style="width: 100%; height: 1px; margin: 10px 0 10px 0; border-bottom: 1px dashed black;"></div>
                                 <div>
                                     <div style="display: flex; justify-content: space-between;">
                                         <div style="text-transform: uppercase">Previous Reading</div>
@@ -254,7 +254,7 @@
                                         <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">{{$data['current_bill']['reading']['consumption'] ?? '0'}}</div>
                                     </div>
                                 </div>
-                                <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                                <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                 <div>
 
                                     @php
@@ -306,12 +306,12 @@
                                             <div>- ({{$data['current_bill']['advances']}})</div>
                                         </div>
                                     @endif
-                                    <div style="display: flex; justify-content: space-between;">
+                                    <!-- <div style="display: flex; justify-content: space-between;">
                                         <div style="text-transform: uppercase;">2% Franchise Tax:</div>
                                         <div style="text-transform: uppercase;">0</div>
-                                    </div>
+                                    </div> -->
                                 </div>
-                                <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                                <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                 <div style="display: flex; justify-content: space-between; margin: 5px 0 5px 0;">
                                     <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">Current Billing:</div>
                                     <div style="font-size: 20px; font-weight: 800; text-transform: uppercase">{{(float) $data['current_bill']['total'] - (float) $arrears - (float) $totalDiscount}}</div>
@@ -322,7 +322,7 @@
                                         <div style="text-transform: uppercase;">{{$arrears}}</div>
                                     </div>
                                 @endif
-                                <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                                <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
                                     <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">Amount Due:</div>
                                     <div style="text-transform: uppercase; font-size: 20px; font-weight: 800;">{{number_format($data['current_bill']['amount'], 2)}} </div>
@@ -355,8 +355,8 @@
                                         @endif
                                     </div>
                                 </div>
-                                <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
-                                <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                                <div style="margin: 8px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
+                                <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                 <h6 style="font-weight: bold; text-transform: uppercase; text-align: center; margin-top: 10px; margin-bottom: 10px;">6 months Consumption History</h6>
                                 <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; text-transform: uppercase;">
                                     @foreach($data['previousConsumption'] as $prevConsump)
@@ -385,7 +385,7 @@
                                     <div style="text-transform: uppercase;">Time Stamp: </div>
                                     <div style="text-transform: uppercase;">{{\Carbon\Carbon::now()->format('D M d H:i:s \G\M\TP Y')}}</div>
                                 </div>
-                                <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>                    
+                                <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                 <div style="margin-top: 15px; display: flex; justify-content: center; gap: 35px; align-items: center;">
                                     <div>
                                         {!! $qr_code !!}
@@ -397,10 +397,10 @@
                                             <li>Choose a merchant on NovuPay.</li>
                                             <li>Pay the total amount due.</li>
                                             <li>Keep your receipt.</li>
-                                        </ol>                            
+                                        </ol>
                                     </div>
                                 </div>
-                            
+
                                 @php
                                     $bill = $data['current_bill']['created_at'] ?? null;
                                     $start = $data['client']['sc_discount']['effective_date'] ?? null;
@@ -436,7 +436,7 @@
                                 <div style="margin: 20px 0 16px 0; display: flex; justify-content: center; align-items: center;">
                                     <div style="text-transform: uppercase; text-align: center; font-weight: 500; background-color: #000; color: #fff; padding: 5px;">This is NOT valid as Official Receipt</div>
                                 </div>
-                            </div>                    
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -445,7 +445,7 @@
     </main>
     <style>
 
-        body * {    
+        body * {
             font-family: Verdana, Geneva, Tahoma, sans-serif;
             font-size: 13px;
         }
@@ -472,11 +472,11 @@
         }
 
         @media print {
-            
+
             @page {
                 margin: 0mm 5mm 0mm 0mm;
             }
-    
+
             body * {
                 padding: 0px !important;
                 box-shadow: none !important;
@@ -485,11 +485,11 @@
                 font-weight: 800;
                 font-family: monospace;
             }
-    
+
             header, .print-controls {
                 display: none !important;
             }
-    
+
             .isPaid {
                 display: none;
                 visibility: hidden;
@@ -508,7 +508,7 @@
                 margin: 0 auto 10px auto !important;
                 display: block !important;
             }
-            
+
         }
     </style>
 @endsection
