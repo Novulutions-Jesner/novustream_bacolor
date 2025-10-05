@@ -48,6 +48,13 @@ class DashboardController extends Controller
 
         $total_payments = $readings->sum(fn($r) => (float) ($r['bill']['amount'] ?? 0));
 
+        $total_transactions_count = $readings
+            ->where('bill.isPaid', true)
+            ->count();
+
+        $payment_method_count = $readings
+            ->groupBy('bill.payment_method')->map(fn ($group) => $group->count());
+
         $data = [
             'admins' => $users['admins'] ?? [],
             'concessionaires' => $users['concessionaires'] ?? [],
@@ -57,6 +64,8 @@ class DashboardController extends Controller
             'total_unpaid' => $total_unpaid,
             'total_paid' => $total_paid,
             'total_payments' => $total_payments,
+            'total_transactions_count' => $total_transactions_count,
+            'payment_method_count' => $payment_method_count
         ];
 
         return view('dashboard', compact('data'));

@@ -12,6 +12,8 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Yajra\DataTables\Facades\DataTables;
 use App\Models\Ruling;
+use App\Models\PaymentDiscount;
+
 
 class PaymentBreakdownController extends Controller
 {
@@ -233,7 +235,7 @@ class PaymentBreakdownController extends Controller
                 'name' => 'required|unique:payment_discount',
                 'type' => 'required|in:percentage,fixed',
                 'percentage_of' => 'nullable|required_if:type,percentage|in:basic_charge,total_amount',
-                'eligible' => 'required|in:pwd,senior',
+                'eligible' => 'required|in:pwd,senior,franchise',
                 'amount' => 'required|numeric'
             ]);
 
@@ -242,7 +244,6 @@ class PaymentBreakdownController extends Controller
                     ->withErrors($validator)
                     ->withInput();
             }
-
             $response = $this->paymentBreakdownService::create($payload);
 
         }
@@ -313,40 +314,46 @@ class PaymentBreakdownController extends Controller
     }
 
 
-    public function update(int $id, Request $request) {
+    public function update(Request $request, $id)
+    {
+        // Determine the action (discount, regular, penalty, service-fee)
+        $action = $request->input('action');
 
-        $payload = $request->all();
+        if ($action === 'discount') {
+            // Validation
+            $validated = $request->validate([
+                'name' => "required|unique:payment_discount,name,{$id}",
+                'eligible' => 'nullable|in:pwd,senior,franchise',
+                'type' => 'required|in:fixed,percentage',
+                'percentage_of' => 'nullable|in:basic_charge,total_amount',
+                'amount' => 'required|numeric',
+            ]);
 
-        $validator = Validator::make($payload, [
-            'name' => [
-                'required',
-                Rule::unique('payment_breakdowns')->ignore($id)
-            ],
-            'type' => 'required|in:percentage,fixed',
-            'percentage_of' => 'nullable|required_if:type,percentage|in:basic_charge,total_amount',
-            'amount' => 'required|numeric'
+            // Find discount
+            $discount = PaymentDiscount::findOrFail($id);
+
+            // Update values
+            $discount->update([
+                'name' => $validated['name'],
+                'eligible' => $validated['eligible'] ?? null,
+                'type' => $validated['type'],
+                'percentage_of' => $validated['percentage_of'] ?? null,
+                'amount' => $validated['amount'],
+            ]);
+
+            return redirect()
+                ->route('payment-breakdown.index', ['view' => 'discount'])
+                ->with('alert', [
+                    'status' => 'success',
+                    'message' => 'Discount updated successfully.'
+                ]);
+        }
+
+        // Handle other actions (optional)
+        return redirect()->back()->with('alert', [
+            'status' => 'error',
+            'message' => 'Action not supported.'
         ]);
-
-        if($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
-
-        $response = $this->paymentBreakdownService::update($id, $payload);
-
-        if ($response['status'] === 'success') {
-            return redirect()->back()->with('alert', [
-                'status' => 'success',
-                'message' => $response['message']
-            ]);
-        } else {
-            return redirect()->back()->withInput()->with('alert', [
-                'status' => 'error',
-                'message' => $response['message']
-            ]);
-        }
-
     }
 
 
@@ -378,6 +385,8 @@ class PaymentBreakdownController extends Controller
         }
 
     }
+
+
 
     public function datatable($action, $query) {
         if($action == 'regular') {
@@ -443,6 +452,34 @@ class PaymentBreakdownController extends Controller
                 ->make(true);
         }
 
+        if($action == 'franchise') {
+    return DataTables::of($query)
+        ->addIndexColumn()
+        ->editColumn('amount', function($row) {
+            if($row->type == 'percentage') {
+                return $row->amount . '%';
+            } else {
+                return '₱' .  number_format($row->amount ?? 0, 2);
+            }
+        })
+        ->addColumn('actions', function ($row) use ($action) {
+            return '
+            <div class="d-flex align-items-center gap-2">
+                <a href="' . route('payment-breakdown.edit', ['payment_breakdown' => $row->id, 'action' => $action]) . '"
+                    class="btn btn-secondary text-white text-uppercase fw-bold"
+                    id="update-btn" data-id="' . e($row->id) . '">
+                    <i class="bx bx-edit-alt"></i>
+                </a>
+                <button class="btn btn-danger text-white text-uppercase fw-bold btn-delete" id="btn-delete" data-id="' . e($row->id) . '">
+                    <i class="bx bx-trash"></i>
+                </button>
+            </div>';
+        })
+        ->rawColumns(['status', 'actions'])
+        ->make(true);
+}
+
+
         if($action == 'discount') {
             return DataTables::of($query)
                 ->addIndexColumn()
@@ -460,6 +497,7 @@ class PaymentBreakdownController extends Controller
 
                     $eligible = [
                         'senior' => 'Senior Citizen',
+                        'franchise' => 'Franchise Discount',
                         'pwd' => 'Person with disability'
                     ];
 

@@ -152,10 +152,6 @@
                                                     <div>- ({{$data['current_bill']['advances']}})</div>
                                                 </div>
                                             @endif
-                                            <div style="display: flex; justify-content: space-between;">
-                                                <div style="text-transform: uppercase;">2% Franchise Tax:</div>
-                                                <div style="text-transform: uppercase;">0</div>
-                                            </div>
                                         </div>
                                         <div style="margin: 5px 0 5px 0; width: 100%; height: 1px; border-bottom: 1px dashed black;"></div>
                                         <div class="oversized" style="display: flex; justify-content: space-between; margin: 5px 0 5px 0;">
@@ -283,10 +279,17 @@
                         </div>
                         <div class="col-12 col-md-6">
                             @if(!$data['current_bill']['isPaid'])
+                                @php
+                                    $amount = (float)($data['current_bill']['amount'] ?? 0);
+                                    $dbPenalty = (float)($data['current_bill']['penalty'] ?? 0);
+                                    $computedPenalty = (float)($data['current_bill']['assumed_penalty'] ?? 0);
+                                    $totalPenalty = $dbPenalty + $computedPenalty;
+                                @endphp
+
                                 <div class="bg-danger d-flex align-items-center justify-content-between mt-4 p-3 text-uppercase fw-bold text-white">
                                     Total Amount Due:
-                                    <h3 class="ms-2">
-                                        PHP {{number_format((float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'] ?? 0, 2)}}
+                                    <h3 class="ms-2 mb-0">
+                                        PHP {{ number_format($amount + $totalPenalty, 2) }}
                                     </h3>
                                 </div>
                                 <div class="card mt-4">
@@ -298,62 +301,99 @@
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
                                         </div>
+
+                                        @php
+                                            $currentBill = (float)($data['current_bill']['amount'] ?? 0);
+                                            $arrears = (float)($data['current_bill']['previous_unpaid'] ?? 0);
+                                            $penalty = (float)($data['current_bill']['assumed_penalty'] ?? 0);
+                                            $prevPenalty = (float)($data['current_bill']['penalty'] ?? 0);
+                                            $discount = (float)($data['current_bill']['discount'] ?? 0); // Optional
+                                            $advancePayment = (float)($data['current_bill']['advances'] ?? 0);
+                                            $hasAdvancePayment = $data['current_bill']['isChangeForAdvancePayment'] ?? false;
+
+                                            // Net bill logic: apply discount and advances, but never negative
+                                            $netCurrentBill = max(0, $currentBill - $discount - ($hasAdvancePayment ? $advancePayment : 0));
+
+                                            // Final total due: arrears + net bill + penalty
+                                            $totalDue = $arrears + $netCurrentBill + $penalty + $prevPenalty;
+                                        @endphp
+
+                                        <!-- Arrears -->
                                         <div class="mb-3">
                                             <div class="text-end">
-                                                <label for="previous" class="form-label">Arrears</label>
-                                                <h2>PHP {{number_format((float)($data['current_bill']['previous_unpaid'] ?? 0), 2)}}</h2>
+                                                <label class="form-label">Arrears</label>
+                                                <h2>PHP {{ number_format($arrears, 2) }}</h2>
                                             </div>
                                         </div>
+
+                                        <!-- Current Billing -->
                                         <div class="mb-3">
                                             <div class="text-end">
-                                                <label for="total_charges" class="form-label">Current Billing</label>
-                                                 @php
-                                                    $current_billing = (float)$data['current_bill']['amount'] - (float) $data['current_bill']['previous_unpaid'];
-                                                    $hasAdvancePayment = $data['current_bill']['isChangeForAdvancePayment'];
-                                                    $advancePayment = (float) $data['current_bill']['advances'] ?? 0;
-
-                                                    if($hasAdvancePayment) {
-                                                        $current_billing =  $current_billing + $advancePayment;
-                                                    }
-                                                @endphp
-                                                <h2 class="fw-bold">PHP {{number_format($current_billing, 2)}}</h2>
+                                                <label class="form-label">Current Billing</label>
+                                                <h2 class="fw-bold">PHP {{ number_format($netCurrentBill, 2) }}</h2>
                                             </div>
-                                            @if($hasAdvancePayment)
+
+                                            @if($discount > 0)
                                                 <div class="text-end">
-                                                    <h6 class="text-primary" style="font-size: 12px;">- PHP {{number_format($advancePayment, 2)}} (ADVANCES)</h6>
+                                                    <h6 class="text-success" style="font-size: 12px;">- PHP {{ number_format($discount, 2) }} (DISCOUNT)</h6>
                                                 </div>
                                             @endif
-                                            <div class="text-end">
-                                                <h6 class="text-danger" style="font-size: 12px;">+ PHP {{number_format((float)($data['current_bill']['penalty'] ?? 0), 2)}} (PENALTY)</h6>
-                                            </div>
+
+                                            @if($hasAdvancePayment && $advancePayment > 0)
+                                                <div class="text-end">
+                                                    <h6 class="text-primary" style="font-size: 12px;">- PHP {{ number_format($advancePayment, 2) }} (ADVANCE PAYMENT)</h6>
+                                                </div>
+                                            @endif
+
+                                            @if($prevPenalty > 0)
+                                                <div class="text-end">
+                                                    <h6 class="text-danger" style="font-size: 12px;">+ PHP {{ number_format($prevPenalty, 2) }} (PREVIOUS PENALTY)</h6>
+                                                </div>
+                                            @endif
+
+                                            @if($penalty > 0)
+                                                <div class="text-end">
+                                                    <h6 class="text-danger" style="font-size: 12px;">+ PHP {{ number_format($penalty, 2) }} (DUE DATE PENALTY)</h6>
+                                                </div>
+                                            @endif
                                         </div>
+
+                                        <!-- Total Amount -->
                                         <div class="d-flex justify-content-end align-items-center gap-3 mb-2">
                                             <div class="text-end">
-                                                <label for="total_charges" class="form-label">Total Amount</label>
-                                                <h1 class="fw-bold text-danger">PHP {{number_format((float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'] ?? 0, 2)}}</h1>
+                                                <label class="form-label">Total Amount</label>
+                                                <h1 class="fw-bold text-danger">PHP {{ number_format($totalDue, 2) }}</h1>
                                             </div>
                                         </div>
+
                                         <div class="d-flex justify-content-end w-100">
                                             <hr class="w-75">
                                         </div>
+
+                                        <!-- Payment Input -->
                                         <div class="d-flex justify-content-end align-items-center gap-3 mb-4">
                                             <div class="text-end">
                                                 <label for="payment_amount" class="form-label">Payment Amount</label>
-                                                <input type="text" class="form-control form-control-lg text-end" id="payment_amount" name="payment_amount" value="{{old('payment_amount', 0)}}">
+                                                <input type="text" class="form-control form-control-lg text-end" id="payment_amount" name="payment_amount" value="{{ old('payment_amount', 0) }}">
                                                 @error('payment_amount')
                                                     <div class="invalid-feedback">{{ $message }}</div>
                                                 @enderror
                                             </div>
                                         </div>
+
+                                        <!-- Change Display -->
                                         <div class="d-flex justify-content-end align-items-center gap-3 mb-3">
                                             <div class="text-end">
                                                 <label for="changeAmount" class="form-label">Change</label>
                                                 <h2 class="text-primary fw-bold" id="changeAmount">PHP 0.00</h2>
                                             </div>
                                         </div>
-                                        <div class="d-flex justify-content-end align-items-center gap-2 mb-1" id="isForAdvances">
 
+                                        <div class="d-flex justify-content-end align-items-center gap-2 mb-1" id="isForAdvances">
+                                            {{-- Optional additional display if needed --}}
                                         </div>
+
+                                        <!-- Action Buttons -->
                                         <div class="d-flex justify-content-end gap-3 text-end my-5">
                                             <button type="submit" class="mb-3 btn btn-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="cash">Pay Cash</button>
                                             <button class="mb-3 btn btn-outline-primary px-5 py-3 text-uppercase fw-bold" name="payment_type" value="online">Pay Online</button>
@@ -441,7 +481,8 @@
                 checkPaymentStatus();
             }
 
-            const total = '{{(float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty']}}';
+            const total = parseFloat('{{ $data['current_bill']['amount'] ?? 0 }}')
+            + parseFloat('{{ $data['current_bill']['assumed_penalty'] ?? 0 }}');
             let changeAmount = '';
 
             $('#payment_amount')

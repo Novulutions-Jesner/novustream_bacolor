@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use PDO;
+use App\Models\PaymentDiscount;
 
 class MeterService {
 
@@ -129,12 +130,20 @@ class MeterService {
             }
         }
 
+        $total = $query->count();
+
         $limit = (isset($filter['filter']) && is_numeric($filter['filter']))
             ? (int) $filter['filter']
             : 50;
 
-        return $query->limit($limit)->get();
+        $data = $query->limit($limit)->get();
+
+        return [
+            'total' => $total,
+            'data' => $data
+        ];
     }
+
 
     public function getPreviousReading($account_no) {
 
@@ -521,18 +530,21 @@ class MeterService {
     public function create_breakdown(array $payload) {
         $ruling = Ruling::first();
         $concessionaire = UserAccounts::with('user')->where('account_no', $payload['account_no'])->first();
-        if(is_null($ruling)) {
+
+        if (is_null($ruling)) {
             return [
                 'status' => 'error',
                 'message' => "We've noticed that there's no ruling set. Please add first."
             ];
         }
-        if(is_null($concessionaire)) {
-             return [
+
+        if (is_null($concessionaire)) {
+            return [
                 'status' => 'error',
                 'message' => "We've noticed that there's no concessionaire with this account no."
             ];
         }
+
         $reference_no = $payload['reference_no'];
         $reread_bill = Bill::with('reading')->where('reference_no', $reference_no)->first();
         if (!empty($payload['isReRead'])) {
@@ -541,48 +553,49 @@ class MeterService {
                 $reread_bill->reading->save();
             }
         }
+
         $latest_reading = Reading::with('concessionaire.user', 'bill')
             ->where('isReRead', false)
             ->where('account_no', $payload['account_no'])
             ->latest()
             ->first();
+
         $previous_reading = optional($latest_reading)->present_reading ?? 0;
         $isChangeSaved = optional($latest_reading)->bill->isChangeForAdvancePayment ?? false;
-        $advances = 0;
-        if($isChangeSaved) {
-            $advances = (float) $latest_reading->bill->change ?? 0;
-        }
+
+        $advances = $isChangeSaved ? (float) $latest_reading->bill->change ?? 0 : 0;
         $consumption = (float) $payload['present_reading'] - (float) $previous_reading;
+
         $base_rate = null;
-        if(config('app.product') === 'novustream') {
-            # novustream
+        if (config('app.product') === 'novustream') {
             $rate = Rates::where('property_types_id', $payload['property_types_id'])
-            ->where('cu_m', '<=', $consumption)
-            ->orderByDesc('cu_m')
-            ->value('amount');
+                ->where('cu_m', '<=', $consumption)
+                ->orderByDesc('cu_m')
+                ->value('amount');
         } else {
-            # novusurge
-            $base_rate = BaseRate::where('property_types_id', $payload['property_types_id'])
-                ->value('rate') ?? 0;
-            $rate = $base_rate  *  $consumption;
+            $base_rate = BaseRate::where('property_types_id', $payload['property_types_id'])->value('rate') ?? 0;
+            $rate = $base_rate * $consumption;
         }
-        if ($rate == 0 || $base_rate && $base_rate == 0) {
+
+        if ($rate == 0 || ($base_rate && $base_rate == 0)) {
             return [
                 'status' => 'error',
                 'message' => "We've noticed that there's no rate for this consumption"
             ];
         }
+
         $unpaidAmount = Bill::with('reading')
             ->where('isPaid', false)
             ->whereNotNull('amount')
             ->whereHas('reading', function ($query) use ($payload) {
                 $query->where('account_no', $payload['account_no'])
                     ->where('isReRead', false);
-            })->whereNotNull('amount')
+            })
             ->sum('amount') ?? 0;
+
         $total_amount = $unpaidAmount + $rate;
+
         $other_deductions = $this->paymentBreakdownService::getData();
-        $discounts = $this->paymentBreakdownService::getDiscounts();
         $deductions = [
             [
                 'name' => 'Previous Balance',
@@ -595,12 +608,11 @@ class MeterService {
                 'description' => '',
             ],
         ];
-        // deductions
+
         foreach ($other_deductions as $deduction) {
             if ($deduction->type == 'percentage') {
                 $base_amount = ($deduction->percentage_of == 'basic_charge') ? $rate : $total_amount;
                 $amount = $base_amount * ($deduction->amount);
-
                 $deductions[] = [
                     'name' => $deduction->name,
                     'description' => $deduction->amount . '%',
@@ -614,71 +626,74 @@ class MeterService {
                 ];
             }
         }
-        $sc_discount = SeniorDiscount::where('account_no', $payload['account_no'])
-            ->first();
-        $isSeniorCitizen = !is_null($sc_discount) ? true : false;
-        $sc_discount_start = $sc_discount->effective_date ?? null;
-        $sc_discount_end = $sc_discount->expired_date ?? null;
 
         $total = collect($deductions)->sum('amount');
-        $basic_charge = collect($deductions)
-            ->where('name', 'Basic Charge')
-            ->sum('amount');
+        $basic_charge = collect($deductions)->where('name', 'Basic Charge')->sum('amount');
 
         $appliedDiscounts = [];
-        $discountAmount = 0;
+        $totalDiscount = 0;
+        $accountDiscountType = $concessionaire->discount_type ?? null;
 
-        foreach ($discounts as $discount) {
+        if ($accountDiscountType == 1) {
+            $seniorDiscount = PaymentDiscount::where('eligible', 'senior')->first();
+            if ($seniorDiscount) {
+                // Determine base amount (basic_charge or total)
+                $baseAmount = $basic_charge; // default to basic
+                if ($seniorDiscount->percentage_of === 'total_amount') {
+                    $baseAmount = $total;
+                }
 
-            $isEligible = false;
+                $discountAmount = $seniorDiscount->type === 'fixed'
+                    ? round(floatval($seniorDiscount->amount), 2)
+                    : round($baseAmount * floatval($seniorDiscount->amount), 2);
 
-            if ($discount->eligible === 'senior' && $isSeniorCitizen && $sc_discount_start && $sc_discount_end) {
-                $billDate = Carbon::parse($payload['date']);
-                $scStartDate = Carbon::parse($sc_discount_start);
-                $scEndDate = Carbon::parse($sc_discount_end);
+                $appliedDiscounts[] = [
+                    'name' => $seniorDiscount->name,
+                    'amount' => $discountAmount,
+                    'description' => $seniorDiscount->type === 'percentage' ? $seniorDiscount->amount . '%' : '',
+                ];
 
-                $isEligible = $billDate->between($scStartDate, $scEndDate);
+                $totalDiscount += $discountAmount;
             }
+        } elseif ($accountDiscountType == 2) {
+            $franchiseDiscount = PaymentDiscount::where('eligible', 'franchise')->first();
+            if ($franchiseDiscount) {
+                // Determine base amount (basic_charge or total)
+                $baseAmount = $basic_charge; // default to basic
+                if ($franchiseDiscount->percentage_of === 'total_amount') {
+                    $baseAmount = $total;
+                }
 
-            if (!$isEligible || $consumption > $ruling->snr_dc_rule) {
-                continue;
+                $discountAmount = $franchiseDiscount->type === 'fixed'
+                    ? round(floatval($franchiseDiscount->amount), 2)
+                    : round($baseAmount * floatval($franchiseDiscount->amount), 2);
+
+                $appliedDiscounts[] = [
+                    'name' => $franchiseDiscount->name,
+                    'amount' => $discountAmount,
+                    'description' => $franchiseDiscount->type === 'percentage' ? $franchiseDiscount->amount . '%' : '',
+                ];
+
+                $totalDiscount += $discountAmount;
             }
-
-            if (strtolower($discount->type) === 'percentage') {
-                $discountAmount = $basic_charge * ($discount->amount);
-            } else {
-                $discountAmount = $discount->amount;
-            }
-
-            $overall_total = $total - $discountAmount;
-
-            $appliedDiscounts[] = [
-                'name' => $discount->name,
-                'amount' => $discountAmount,
-                'description' => '',
-            ];
         }
 
-        $overall_total = $discountAmount == 0 ? $total : $overall_total;
-        $overall_total = $overall_total - $advances;
+        $overall_total = $total - $totalDiscount - $advances;
+        $arrears = collect($deductions)->firstWhere('name', 'Previous Balance')['amount'] ?? 0;
 
-        $arrears = collect($deductions)
-            ->firstWhere('name', 'Previous Balance')['amount'] ?? 0;
-
-        // penalty
         $penaltyAmount = 0;
         $amount_after_due = 0;
         $hasPenalty = false;
 
-        if($unpaidAmount != 0) {
-
+        if ($unpaidAmount != 0) {
             $penalties = $this->paymentBreakdownService::getPenalty();
-            $amountPayable = $total - $arrears - $discountAmount;
+            $amountPayable = $total - $arrears - $totalDiscount;
 
             foreach ($penalties as $penalty) {
-
                 if (strtolower($penalty->amount_type) === 'percentage') {
                     $penaltyAmount = $amountPayable * ($penalty->amount);
+                } else if (strtolower($penalty->amount_type) === 'fixed') {
+                    $penaltyAmount = $penalty->amount;
                 } else {
                     $penaltyAmount = $penalty->amount;
                 }
@@ -691,7 +706,7 @@ class MeterService {
         $date = Carbon::parse($payload['date']);
         $days_due = $ruling->due_date;
 
-        if($latest_reading) {
+        if ($latest_reading) {
             $lastReading = Carbon::parse($latest_reading->bill->bill_period_to);
             $nextReading = $lastReading->addDays(1);
             $bill_period_from = $nextReading->format('Y-m-d H:i:s');
@@ -702,8 +717,7 @@ class MeterService {
         }
 
         $due_date = Carbon::parse($payload['date'])->addDays($days_due)->format('Y-m-d H:i:s');
-
-        $isHighConsumption = $payload['is_high_consumption'] == 'yes' ? true : false;
+        $isHighConsumption = $payload['is_high_consumption'] == 'yes';
 
         $reading = [
             'zone' => explode('-', $payload['account_no'])[0] ?? null,
@@ -724,7 +738,7 @@ class MeterService {
             'bill_period_to' => $bill_period_to,
             'previous_unpaid' => $unpaidAmount,
             'total' => $total,
-            'discount' => $discountAmount,
+            'discount' => $totalDiscount,
             'penalty' => $penaltyAmount,
             'hasPenalty' => $hasPenalty,
             'advances' => $advances,
@@ -738,14 +752,11 @@ class MeterService {
         ];
 
         try {
-
             $readingID = Reading::insertGetId($reading);
-
             $bill['reading_id'] = $readingID;
-
             $billID = Bill::insertGetId($bill);
 
-            foreach($deductions as $deduction) {
+            foreach ($deductions as $deduction) {
                 BillBreakdown::insert([
                     'bill_id' => $billID,
                     'name' => $deduction['name'],
@@ -756,7 +767,7 @@ class MeterService {
                 ]);
             }
 
-            foreach($appliedDiscounts as $discount) {
+            foreach ($appliedDiscounts as $discount) {
                 BillDiscount::insert([
                     'bill_id' => $billID,
                     'name' => $discount['name'],
@@ -768,7 +779,6 @@ class MeterService {
             }
 
             if (!empty($payload['isReRead'])) {
-                $reference_no = $payload['reference_no'];
                 if ($reread_bill && $reread_bill->reading) {
                     $reread_bill->reading->reread_reference_no = $generatedReferenceNo;
                     $reread_bill->reading->save();
@@ -778,13 +788,14 @@ class MeterService {
         } catch (\Exception $e) {
             return [
                 'status' => 'error',
-                'message' => $e->getMessage
+                'message' => $e->getMessage()
             ];
         }
 
         return [
             'status' => 'success',
             'bill' => $bill,
+            'basic_charge' => $basic_charge,
         ];
     }
 

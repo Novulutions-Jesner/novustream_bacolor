@@ -16,18 +16,18 @@
                             <li><a class="dropdown-item" href="{{route('payment-breakdown.create', ['action' => 'discount'])}}">Discounts</a></li>
                             <li><a class="dropdown-item" href="{{route('payment-breakdown.create', ['action' => 'service-fee'])}}">Service Fee</a></li>
                         </ul>
-                    </div>                     
+                    </div>
                 </div>
             </div>
-            
+
             <div class="inner-content mt-5 pb-5">
 
                 <ul class="nav nav-pills mb-5" id="pills-tab" role="tablist">
                     @foreach(['regular' => 'Regular Breakdown', 'penalty' => 'Penalty Breakdown', 'discount' => 'Discounts', 'service-fee' => 'Service Fee', 'ruling' => 'Ruling'] as $key => $label)
                         <li class="nav-item" role="presentation">
-                            <a 
-                                class="nav-link text-uppercase  {{ $view == $key ? 'active' : '' }}" 
-                                id="pills-{{ $key }}-tab" 
+                            <a
+                                class="nav-link text-uppercase  {{ $view == $key ? 'active' : '' }}"
+                                id="pills-{{ $key }}-tab"
                                 href="{{ route('payment-breakdown.index', ['view' => $key]) }}"
                             >
                                 {{ $label }}
@@ -134,11 +134,11 @@
                                         <p class="card-text text-uppercase">Set the due date to a day after the billing date.</p>
                                         <div style="position: absolute; left: 0; bottom: 20px; width: 100%; padding: 0 20px 0 20px;">
                                             <label class="mb-2">No. of days</label>
-                                            <input 
-                                                type="number" 
-                                                name="due_date" 
-                                                id="due_date" 
-                                                class="form-control" 
+                                            <input
+                                                type="number"
+                                                name="due_date"
+                                                id="due_date"
+                                                class="form-control"
                                                 value="{{ old('due_date', $ruling->due_date ?? '') }}">
                                             @error('due_date')
                                                 <div class="invalid-feedback d-block">{{ $message }}</div>
@@ -156,11 +156,11 @@
                                         <p class="card-text text-uppercase">Schedule the disconnection date after the due date and make sure to notify the concessionaire about the pending status.</p>
                                         <div style="position: absolute; left: 0; bottom: 20px; width: 100%; padding: 0 20px 0 20px;">
                                             <label class="mb-2">No. of days</label>
-                                            <input 
-                                                type="number" 
-                                                name="disconnection_date" 
-                                                id="disconnection_date" 
-                                                class="w-100 form-control" 
+                                            <input
+                                                type="number"
+                                                name="disconnection_date"
+                                                id="disconnection_date"
+                                                class="w-100 form-control"
                                                 value="{{ old('disconnection_date', $ruling->disconnection_date ?? '') }}">
                                             @error('disconnection_date')
                                                 <div class="invalid-feedback d-block">{{ $message }}</div>
@@ -181,7 +181,7 @@
                                             <select name="disconnection_rule" id="disconnection_rule" class="form-select">
                                                 <option value=""> - CHOOSE - </option>
                                                 @for ($i = 1; $i <= 6; $i++)
-                                                    <option value="{{ $i }}" 
+                                                    <option value="{{ $i }}"
                                                         {{ (old('disconnection_rule', $ruling->disconnection_rule ?? '') == $i) ? 'selected' : '' }}>
                                                         {{ $i }} Month{{ $i > 1 ? 's' : '' }}
                                                     </option>
@@ -203,11 +203,11 @@
                                         <p class="card-text text-uppercase">Implement the senior discount and determine the maximum cubic meter allowed to qualify</p>
                                         <div style="position: absolute; left: 0; bottom: 20px; width: 100%; padding: 0 20px 0 20px;">
                                             <label class="mb-2">Maximum Consumption</label>
-                                            <input 
-                                                type="number" 
-                                                name="snr_dc_rule" 
-                                                id="snr_dc_rule" 
-                                                class="w-100 form-control" 
+                                            <input
+                                                type="number"
+                                                name="snr_dc_rule"
+                                                id="snr_dc_rule"
+                                                class="w-100 form-control"
                                                 value="{{ old('snr_dc_rule', $ruling->snr_dc_rule ?? '') }}">
                                             @error('snr_dc_rule')
                                                 <div class="invalid-feedback d-block">{{ $message }}</div>
@@ -248,9 +248,9 @@
             serverSide: true,
             ajax: regular,
             columns: [
-                { data: 'name', name: 'name' }, 
+                { data: 'name', name: 'name' },
                 { data: 'amount', name: 'amount' },
-                { data: 'actions', name: 'actions', orderable: false, searchable: false } 
+                { data: 'actions', name: 'actions', orderable: false, searchable: false }
             ],
             responsive: true,
             order: [[0, 'desc']],
@@ -262,7 +262,7 @@
             serverSide: true,
             ajax: penalty,
             columns: [
-                { data: 'due_from', name: 'due_from' }, 
+                { data: 'due_from', name: 'due_from' },
                 { data: 'due_to', name: 'due_to' },
                 { data: 'amount_type', name: 'amount_type' },
                 { data: 'amount', name: 'amount' },
@@ -277,7 +277,7 @@
             serverSide: true,
             ajax: service,
             columns: [
-                { data: 'property', name: 'property' }, 
+                { data: 'property', name: 'property' },
                 { data: 'amount', name: 'amount' },
             ],
             responsive: true,
@@ -293,7 +293,7 @@
                 { data: 'name', name: 'name' },
                 { data: 'eligible', name: 'eligible' },
                 { data: 'amount', name: 'amount' },
-                { data: 'actions', name: 'actions', orderable: false, searchable: false } 
+                { data: 'actions', name: 'actions', orderable: false, searchable: false }
             ],
             responsive: true,
             order: [[0, 'desc']],
@@ -301,7 +301,7 @@
         });
 
         $(document).on('click', '.btn-delete', function() {
-       
+
             const view = new URLSearchParams(window.location.search).get('view');
             const id = $(this).data('id');
             const token = '{{ csrf_token() }}';

@@ -16,5 +16,5 @@ class BillDiscount extends Model
         'description',
         'amount'
     ];
-    
+
 }

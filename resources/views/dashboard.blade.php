@@ -35,11 +35,11 @@
             <div>
                 <hr class="mt-3 mb-3">
                 <p class="text-uppercase text-muted fw-bold">
-                    As of 
+                    As of
                     <span class="text-decoration-underline fst-italic">
                       {{ \Carbon\Carbon::now()->format('F d, Y \a\t h:i A') }}
                     </span>
-                </p>                  
+                </p>
             </div>
 
             <div class="row">
@@ -67,6 +67,30 @@
                         </div>
                     </div>
                 </div>
+                <!-- <div class="col-12 col-md-4 mb-3">
+                    <div class="card border-primary border-2 shadow p-3">
+                        <div class="card-body">
+                            <h4 class="mb-3 text-uppercase fw-medium">Transactions</h4>
+                            <h1>{{ $data['total_transactions_count'] ?? 0 }}</h1>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4 mb-3">
+                    <div class="card border-primary border-2 shadow p-3">
+                        <div class="card-body">
+                            <h4 class="mb-3 text-uppercase fw-medium">Cash Payment</h4>
+                            <h1>{{ $data['payment_method_count']['cash'] ?? 0 }}</h1>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4 mb-3">
+                    <div class="card border-primary border-2 shadow p-3">
+                        <div class="card-body">
+                            <h4 class="mb-3 text-uppercase fw-medium">Online Payment</h4>
+                            <h1>{{ $data['payment_method_count']['online'] ?? 0 }}</h1>
+                        </div>
+                    </div>
+                </div> -->
             </div>
         </div>
     </main>

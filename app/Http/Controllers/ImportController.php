@@ -86,7 +86,7 @@ class ImportController extends Controller
                 'import_class' => \App\Imports\OutstandingBalanceImport::class,
             ],
             'sc_discount' => [
-                'expected_headers' => ['account_no','name','id_no','effectivity_date','expired_date'],
+                'expected_headers' => ['account_no','name','id_no','effectivity_date','expired_date', 'type'],
                 'import_class' => SCDiscountImport::class,
             ],
             'rates_code' => [

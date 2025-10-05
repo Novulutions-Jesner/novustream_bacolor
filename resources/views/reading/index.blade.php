@@ -221,8 +221,11 @@
                 search,
                 offset,
                 limit
-            }, function (data) {
+            }, function (res) {
                 isLoading = false;
+
+                const data = Array.isArray(res) ? res : (res.data || []);
+                const total = (res && res.total !== undefined) ? res.total : data.length;
 
                 if (!append) {
                     $('.concessionaire-list').empty();
@@ -247,19 +250,11 @@
                     return;
                 }
 
-                if (!append) {
-                    $('.concessionaire-result').html(`
-                        <div class="text-uppercase fw-bold text-muted fst-italic mb-2 " data-count="${data.length}">
-                            Accounts Found: ${data.length}
-                        </div>
-                    `);
-                } else {
-                    const $resultDiv = $('.concessionaire-result > div');
-                    const currentCount = parseInt($resultDiv.data('count') || 0);
-                    const newCount = currentCount + data.length;
-                    $resultDiv.data('count', newCount);
-                    $resultDiv.html(`Accounts Found: ${newCount}`);
-                }
+                $('.concessionaire-result').html(`
+                    <div class="text-uppercase fw-bold text-muted fst-italic mb-2" data-count="${total}">
+                        Accounts Found: ${total}
+                    </div>
+                `);
 
                 data.forEach((account, index) => {
                     const status = account.status;
@@ -295,7 +290,6 @@
 
                     $('.concessionaire-list').append(html);
                 });
-
 
                 offset += data.length;
 

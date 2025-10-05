@@ -139,7 +139,7 @@
                       <input
                         type="text"
                         class="form-control"
-                        :id="'senior_citizen_no_' + index" readonly
+                        :id="'senior_citizen_no_' + index"
                         :value="getScDiscountIdNo(index)"
                         :class="{ 'is-invalid': errors && errors['accounts.' + index + '.sc_discount.id_no'] }"
                       >

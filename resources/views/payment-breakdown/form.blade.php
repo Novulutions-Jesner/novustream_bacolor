@@ -231,6 +231,8 @@
                         @if(isset($data))
                             @method('PUT')
                         @endif
+
+                        <input type="hidden" name="action" value="{{ $action }}">
                         <div class="row">
                             <div class="col-12 col-md-12 mb-3">
                                 <div class="card shadow border-0 p-2">
@@ -252,7 +254,7 @@
                                                 <label for="eligible" class="form-label">Amount Type</label>
                                                 <select name="eligible" id="eligible" class="form-select text-uppercase @error('eligible') is-invalid @enderror">
                                                     <option value=""> - CHOOSE - </option>
-                                                    @foreach(['senior' => 'Senior Citizen', 'pwd' => 'Person With Disability'] as $key => $label)
+                                                    @foreach(['senior' => 'Senior Citizen', 'franchise' => 'Franchise Discount', 'pwd' => 'Person With Disability'] as $key => $label)
                                                         <option value="{{ $key }}" {{ old('eligible', $data->eligible ?? '') == $key ? 'selected' : '' }}>{{ $label }}</option>
                                                     @endforeach
                                                 </select>

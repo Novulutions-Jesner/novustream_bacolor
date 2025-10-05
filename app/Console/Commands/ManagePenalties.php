@@ -4,9 +4,9 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\Bill;
-use App\Models\BillBreakdown;
 use Carbon\Carbon;
 use App\Services\PaymentBreakdownService;
+
 class ManagePenalties extends Command
 {
     /**
@@ -21,13 +21,14 @@ class ManagePenalties extends Command
      *
      * @var string
      */
-    protected $description = 'Command description';
+    protected $description = 'Apply penalties to overdue bills';
 
     /**
      * Execute the console command.
      */
     public function handle()
     {
+        $this->info('Starting penalty management...');
 
         Bill::with('reading')
             ->where('isPaid', false)
@@ -35,31 +36,37 @@ class ManagePenalties extends Command
                 $paymentBreakdownService = new PaymentBreakdownService;
                 $penalties = $paymentBreakdownService::getPenalty();
 
-                $currentTimestamp = Carbon::parse('2025-06-12');
+                $currentTimestamp = Carbon::now()->startOfDay(); // Use current day
 
                 foreach ($bills as $bill) {
 
+                    // Skip bills that already have a penalty
                     if ($bill->hasPenalty) {
                         continue;
                     }
 
                     $dueTimestamp = Carbon::parse($bill->due_date)->startOfDay();
 
+                    // Skip bills not yet due
                     if ($currentTimestamp->lte($dueTimestamp)) {
                         continue;
                     }
 
-                    $dueCount = $currentTimestamp->diffInDays($dueTimestamp);
+                    // Calculate overdue days
+                    $dueCount = $dueTimestamp->diffInDays($currentTimestamp);
 
                     $penalty = $this->findPenaltyForDueCount($penalties, $dueCount);
 
                     if ($penalty === null) {
-                        continue; 
+                        continue;
                     }
 
                     $this->applyPenaltyToBill($bill, $penalty);
+                    $this->info("Applied penalty to Bill ID: {$bill->id}");
                 }
             });
+
+        $this->info('Penalty management completed.');
     }
 
     /**
@@ -82,23 +89,24 @@ class ManagePenalties extends Command
      * Apply penalty to a single bill.
      */
     protected function applyPenaltyToBill(Bill $bill, $penalty)
-    {
-        $amountPayable = $bill->amount;
-        $penaltyAmount = 0;
+{
+    $amountPayable = $bill->amount; // original billing
+    $penaltyAmount = 0;
 
-        if (strtolower($penalty->amount_type) === 'percentage') {
-            $penaltyAmount = $amountPayable * ($penalty->amount);
-        } else {
-            $penaltyAmount = $penalty->amount;
-        }
-
-        $totalAmount = $amountPayable + $penaltyAmount;
-
-        $bill->update([
-            'amount_after_due' => $totalAmount,
-            'penalty' => $penaltyAmount,
-            'hasPenalty' => true,
-        ]);
+    if (strtolower($penalty['amount_type']) === 'percentage') {
+        $penaltyAmount = $amountPayable * ($penalty['amount'] / 100);
+    } else {
+        $penaltyAmount = $penalty['amount'];
     }
+
+    // Add penalty directly to the total amount
+    $totalAmount = $amountPayable + $penaltyAmount;
+
+    $bill->update([
+        'amount' => $totalAmount,      // total amount includes penalty
+        'penalty' => $penaltyAmount,   // optional, can still keep for display
+        'hasPenalty' => true,
+    ]);
+}
 
 }

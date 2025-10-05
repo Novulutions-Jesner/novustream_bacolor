@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\PaymentBreakdown;
+use App\Services\PaymentBreakdownService;
 use App\Models\PaymentServiceFee;
 use App\Models\User;
 use App\Models\Bill;
@@ -20,6 +20,10 @@ use Illuminate\Support\Facades\Validator;
 use Yajra\DataTables\Facades\DataTables;
 use Illuminate\Support\Facades\Log;
 use App\Models\Zone; // make sure this is at the top
+use App\Models\PaymentDiscount;
+use App\Models\BillDiscount;
+use App\Models\Discount;
+use App\Models\DiscountType;
 
 
 class ReadingController extends Controller
@@ -32,7 +36,7 @@ class ReadingController extends Controller
     public $isTesting = false;
 
     public function __construct(MeterService $meterService,
-        PaymentBreakdown $paymentBreakdownService,
+        PaymentBreakdownService $paymentBreakdownService,
         PaymentServiceFee $paymentServiceFee,
         GenerateService $generateService)
     {
@@ -121,14 +125,20 @@ class ReadingController extends Controller
         $user = auth()->user();
 
         if ($user->user_type === 'technician') {
-            $assignedZones = explode(',', $user->zone_assigned);
-
-            $zones = Zone::whereIn('zone', $assignedZones)->get();
-            $showAllOption = false;
+            if (empty($user->zone_assigned)) {
+                // Treat as admin if no zones assigned
+                $zones = Zone::all();
+                $showAllOption = true;
+            } else {
+                $assignedZones = explode(',', $user->zone_assigned);
+                $zones = Zone::whereIn('zone', $assignedZones)->get();
+                $showAllOption = false;
+            }
         } else {
             $zones = Zone::all();
             $showAllOption = true;
         }
+
 
         return view('reading.index', [
             'isReRead' => $isReRead,
@@ -187,8 +197,7 @@ class ReadingController extends Controller
 
         $zonesQuery = DB::table('concessioner_accounts');
 
-        // 🔹 Apply technician restriction
-        if ($user->user_type === 'technician') {
+        if ($user->user_type === 'technician' && !empty($user->zone_assigned)) {
             $assignedZones = explode(',', $user->zone_assigned);
             $zonesQuery->whereIn('zone', $assignedZones);
         }
@@ -204,7 +213,7 @@ class ReadingController extends Controller
             ->whereMonth('readings.created_at', Carbon::parse($date)->month)
             ->whereYear('readings.created_at', Carbon::parse($date)->year);
 
-        if ($user->user_type === 'technician') {
+        if ($user->user_type === 'technician' && !empty($user->zone_assigned)) {
             $readingsPerZone->whereIn('concessioner_accounts.zone', $assignedZones);
         }
 
@@ -353,12 +362,107 @@ class ReadingController extends Controller
             return response()->json($computed, 400);
         }
 
-        $reference_no = $computed['bill']['reference_no'];
-        $amount = $computed['bill']['amount'];
+        $billData = $computed['bill'];
+        $reference_no = $billData['reference_no'];
+        $amount = $billData['amount'];
 
+        $basicCharge = $computed['basic_charge'];
+        $totalAmount = $computed['bill']['amount'];
+
+        // Save bill
+        $bill = Bill::updateOrCreate(
+            ['reference_no' => $reference_no],
+            [
+                'account_no' => $account_no,
+                'amount' => $amount,
+                'penalty' => 0,
+                'discount' => $computed['bill']['discount'] ?? 0,
+                'amount_after_due' => $computed['bill']['amount_after_due'] ?? $amount
+            ]
+        );
+
+        $today = Carbon::today();
+
+        $discountRecord = Discount::where('account_no', $account->account_no)
+            ->whereDate('effective_date', '<=', $today)
+            ->whereDate('expired_date', '>=', $today)
+            ->first();
+
+        Log::info('Checking discount record', [
+            'account_no' => $account->account_no,
+            'record' => $discountRecord ? $discountRecord->toArray() : null,
+            'type_id' => $discountRecord ? $discountRecord->discount_type_id : null,
+        ]);
+
+        $totalDiscount = 0;
+
+        if ($discountRecord && $discountRecord->discount_type_id) {
+            $discountTypeRow = DiscountType::find($discountRecord->discount_type_id);
+            Log::info('DiscountTypeRow', [
+                'discount_type_row' => $discountTypeRow ? $discountTypeRow->toArray() : null
+            ]);
+
+            if ($discountRecord->discount_type_id == 1) {
+                $seniorDiscount = PaymentDiscount::where('eligible', 'senior')->first();
+
+                if ($seniorDiscount) {
+                    //calculate baseAmount based on percentage_of
+                    $baseAmount = $seniorDiscount->percentage_of === 'basic_charge' ? $basicCharge : $totalAmount;
+
+                    $seniorAmount = $seniorDiscount->type === 'fixed'
+                        ? round(floatval($seniorDiscount->amount), 2)
+                        : round($baseAmount * floatval($seniorDiscount->amount), 2);
+
+                    BillDiscount::create([
+                        'bill_id' => $bill->id,
+                        'name' => $seniorDiscount->name,
+                        'description' => $seniorDiscount->type ?? null,
+                        'amount' => $seniorAmount,
+                    ]);
+
+                    Log::info('Senior discount applied', ['amount' => $seniorAmount]);
+
+                    $totalDiscount += $seniorAmount;
+                }
+            }
+
+            // Franchise Discount
+            if ($discountRecord->discount_type_id == 2) {
+                $franchiseDiscount = PaymentDiscount::where('eligible', 'franchise')->first();
+
+                if ($franchiseDiscount) {
+                    $baseAmount = $franchiseDiscount->percentage_of === 'basic_charge' ? $basicCharge : $totalAmount;
+
+                    $franchiseAmount = $franchiseDiscount->type === 'fixed'
+                        ? round(floatval($franchiseDiscount->amount), 2)
+                        : round($baseAmount * floatval($franchiseDiscount->amount), 2);
+
+                    BillDiscount::create([
+                        'bill_id' => $bill->id,
+                        'name' => $franchiseDiscount->name,
+                        'description' => $franchiseDiscount->type ?? null,
+                        'amount' => $franchiseAmount,
+                    ]);
+
+                    $totalDiscount += $franchiseAmount;
+
+                    Log::info('Franchise discount applied', ['amount' => $franchiseAmount]);
+                }
+            }
+
+        } else {
+            Log::info('No valid discount for this account', ['account_no' => $account->account_no]);
+        }
+
+        $bill->update([
+            'discount' => $totalDiscount,
+            'amount_after_due' => $bill->amount - $totalDiscount
+        ]);
+
+        // Generate payment QR
         $paymentPayload = [
             'reference_no' => $reference_no,
-            'amount' => $amount,
+            'amount' => $bill->amount_after_due,
             'customer' => [
                 'name' => $account->user->name ?? '',
                 'account_no' => $account->account_no,
@@ -368,45 +472,45 @@ class ReadingController extends Controller
 
         $qrResponse = $this->generatePaymentQR($reference_no, $paymentPayload);
 
-        if (!$qrResponse) {
-            DB::rollBack();
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to save this transaction. Please try again later.'
-            ], 500);
+                if (!$qrResponse) {
+                    DB::rollBack();
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Failed to save this transaction. Please try again later.'
+                    ], 500);
+                }
+
+
+                session(['recent_reading' => [
+                    'name' => $account->user->name ?? '',
+                    'address' => $account->address ?? '',
+                    'account_no' => $account->account_no ?? '',
+                    'timestamp' => Carbon::now()
+                ]]);
+
+                DB::commit();
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Bill has been created, redirecting...',
+                    'redirect_url' => route('reading.show', ['reference_no' => $reference_no]),
+                    'data' => [
+                        'reference_no' => $reference_no,
+                        'amount' => $amount,
+                        'customer' => $paymentPayload['customer']
+                    ]
+                ], 201);
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                Log::error('Reading Store Error:', ['exception' => $e]);
+
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Error occurred: ' . $e->getMessage()
+                ], 500);
+            }
         }
-
-
-        session(['recent_reading' => [
-            'name' => $account->user->name ?? '',
-            'address' => $account->address ?? '',
-            'account_no' => $account->account_no ?? '',
-            'timestamp' => Carbon::now()
-        ]]);
-
-        DB::commit();
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Bill has been created, redirecting...',
-            'redirect_url' => route('reading.show', ['reference_no' => $reference_no]),
-            'data' => [
-                'reference_no' => $reference_no,
-                'amount' => $amount,
-                'customer' => $paymentPayload['customer']
-            ]
-        ], 201);
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-        Log::error('Reading Store Error:', ['exception' => $e]);
-
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Error occurred: ' . $e->getMessage()
-        ], 500);
-    }
-}
 
 
     private function convertAmount(float $amount): string
@@ -467,13 +571,11 @@ class ReadingController extends Controller
     // Temporary payment QR generator for testing
     private function generatePaymentQR(string $reference_no, array $payload)
     {
-        // 🔹 Temporary stub for testing only
         Log::info('generatePaymentQR TEST MODE', [
             'reference_no' => $reference_no,
             'payload' => $payload,
         ]);
 
-        // Simulate a successful QR generation
         return [
             'status' => 'success',
             'reference_no' => $reference_no,
@@ -486,7 +588,7 @@ class ReadingController extends Controller
 {
     $user = auth()->user();
 
-    if ($user->user_type === 'technician') {
+    if ($user->user_type === 'technician' && !empty($user->zone_assigned)) {
         $assignedZones = explode(',', $user->zone_assigned);
         $query->whereHas('account', function ($q) use ($assignedZones) {
             $q->whereIn('zone', $assignedZones);
