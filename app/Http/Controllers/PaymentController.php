@@ -244,28 +244,29 @@ class PaymentController extends Controller
     }
 
 
-    public function pay(Request $request, string $reference_no) {
+   public function pay(Request $request, string $reference_no)  {
+    if ($request->isMethod('post')) {
+        $payload = $request->all();
 
-        if($request->getMethod() == 'POST') {
-            $payload = $request->all();
+        switch ($payload['payment_type']) {
+            case 'cash':
+                return $this->processCashPayment($reference_no, $payload);
 
-            switch($payload['payment_type']) {
-                case 'cash':
-                    return $this->processCashPayment($reference_no, $payload);
-                case 'online':
-                    return $this->processOnlinePayment($reference_no, $payload);
-            }
-
+            case 'online':
+                // Redirect to BUx flow (instead of handling here directly)
+                return $this->processOnlinePayment($reference_no, $payload);
         }
+    }
 
-        $data = $this->meterService::getBill($reference_no);
+    // ======== GET BILL DETAILS ========
+    $data = $this->meterService::getBill($reference_no);
 
-        if(isset($data['status']) && $data['status'] == 'error') {
-            return redirect()->back()->with('alert', [
-                'status' => 'error',
-                'message' => $data['message']
-            ]);
-        }
+    if (isset($data['status']) && $data['status'] === 'error') {
+        return redirect()->back()->with('alert', [
+            'status' => 'error',
+            'message' => $data['message']
+        ]);
+    }
 
         if (!is_null($data['active_payment'])
             && $data['active_payment']['reference_no'] !== $reference_no) {
@@ -275,20 +276,22 @@ class PaymentController extends Controller
             ];
         }
 
-        $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+    // ======== QR CODE (for walk-in / display) ========
+    $url = env('NOVUPAY_URL') . '/payment/merchants/' . $reference_no;
+    // 👆 You can also switch this back to NovuPay if QR code is tied to them
+    $qr_code = $this->generateService::qr_code($url, 80);
 
-        $qr_code = $this->generateService::qr_code($url, 80);
+    // ======== Compute Amounts ========
+    $amount = $data['current_bill']['amount'] ?? 0;
+    $assumed_penalty = $amount * 0.15;
+    $assumed_amount_after_due = $amount + $assumed_penalty;
 
-        $amount = $data['current_bill']['amount'] ?? 0;
-        $assumed_penalty = $amount * 0.15;
-        $assumed_amount_after_due = $amount + $assumed_penalty;
+    $data['current_bill']['assumed_penalty'] = $assumed_penalty;
+    $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
 
-        $data['current_bill']['assumed_penalty'] = $assumed_penalty;
-        $data['current_bill']['assumed_amount_after_due'] = $assumed_amount_after_due;
+    return view('payments.pay', compact('data', 'reference_no', 'qr_code'));
+}
 
-        return view('payments.pay', compact('data', 'reference_no', 'qr_code'));
-
-    }
 
     private function getBill(string $reference_no, $payload = null, bool $strictAmount = false)
     {
@@ -327,6 +330,7 @@ class PaymentController extends Controller
         }
 
         $data = $result['data'];
+
         $now = Carbon::now()->format('Y-m-d H:i:s');
 
         $amount = (float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'];
@@ -365,15 +369,17 @@ class PaymentController extends Controller
             }
         }
 
+
         return redirect()->back()->with('alert', [
             'status' => 'success',
             'message' => 'Bill has been paid'
         ]);
     }
 
-    public function processOnlinePayment(string $reference_no, array $payload) {
+    public function processOnlinePaymentOld(string $reference_no, array $payload) {
 
         $result = $this->getBill($reference_no, $payload, false);
+
 
         if (isset($result['error'])) {
             return redirect()->back()->with('alert', [
@@ -389,14 +395,105 @@ class PaymentController extends Controller
             'payment_request' => true,
             'redirect' => $url,
         ]);
+
     }
 
-    public function callback(Request $request, string $reference_no)
-    {
+    public function processOnlinePayment(string $reference_no, array $payload){
+        $result = $this->getBill($reference_no, $payload, false);
+        // var_dump($payload);
+        // echo "--------------0000--------------";
+        // var_dump($result); exit;
+        if (isset($result['error'])) {
+            return redirect()->back()->with('alert', [
+                'status' => 'error',
+                'message' => $result['error']
+            ]);
+        }
+
+        $data = $result['data'];
+
+        $amount = (float) $data['current_bill']['amount'] + (float) $data['current_bill']['penalty'];
+        $amount = number_format($amount, 2, '.', '');
+
+        // === Build BUx payload ===
+        $buxPayload = [
+            "req_id"          => (string) $data['current_bill']['reference_no'],
+            "client_id"       => env('NOVUPAY_CLIENT_ID'),
+            "amount"          => $amount,
+            "description"     => "Payment for bill period {$data['current_bill']['bill_period_from']} to {$data['current_bill']['bill_period_to']}",
+            "expiry"          => 2,
+            "email"           => (string) ($data['client']['email'] ?? 'jeff@novulutions.com'),
+            "contact"         => (string) $data['client']['contact_no'],
+            "name"            => (string) $data['client']['name'],
+            'notification_url' => 'https://1dc0247c4b66.ngrok-free.app/payments/webhook',
+            "redirect_url"    => 'https://1dc0247c4b66.ngrok-free.app/payments/redirect/' . $reference_no,
+            "param1"          => "Bacolor",
+            "param2"          => (string) $data['client']['account_no'],
+            "enabled_channels"=> []
+        ];
+
+        // \Log::info('BUx Payload', $buxPayload); // still logs it in storage/logs/laravel.log
+        // dd($buxPayload); // dumps to browser and stops execution
+
+
+        $client = new \GuzzleHttp\Client();
+
+        $client = new \GuzzleHttp\Client([
+            'base_uri' => env('NOVUPAY_ENDPOINT'),
+            'http_errors' => false,
+            'debug' => true, // this will dump full request/response to stdout
+        ]);
+
+
+
+        try {
+            $client = new \GuzzleHttp\Client();
+
+            $response = $client->post(env('NOVUPAY_ENDPOINT'), [
+                'headers' => [
+                    'x-api-key'     => env('NOVUPAY_API_KEY'),
+                    'client-id'     => env('NOVUPAY_CLIENT_ID'),
+                    'client-secret' => env('NOVUPAY_CLIENT_SECRET'),
+                    'Content-Type'  => 'application/json',
+                ],
+                'body' => json_encode($buxPayload, JSON_UNESCAPED_SLASHES),
+            ]);
+
+
+
+
+            $result = json_decode($response->getBody()->getContents(), true);
+
+            if (!isset($result['checkout_url'])) {
+                return redirect()->back()->with('alert', [
+                    'status' => 'error',
+                    'message' => 'Unable to generate BUx checkout link.'
+                ]);
+            }
+
+            // === Redirect user to BUx checkout page ===
+            return redirect()->route('payments.pay', ['reference_no' => $reference_no])->with('alert', [
+                'status'          => 'success',
+                'payment_request' => true,
+                'redirect'        => $result['checkout_url'],
+            ]);
+
+        } catch (\Exception $e) {
+            return redirect()->back()->with('alert', [
+                'status' => 'error',
+                'message' => 'BUx integration failed: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+
+    public function callback(Request $request, string $reference_no) {
+
         $payload = $request->all();
         $bill = $this->meterService->getBill($reference_no);
 
-        if ($bill) {
+        if($bill) {
+
             $now = Carbon::now()->format('Y-m-d H:i:s');
 
             $currentBill = Bill::find($bill['current_bill']['id']);
@@ -490,4 +587,17 @@ class PaymentController extends Controller
             ->make(true);
     }
 
+
+    public function webhook(Request $request)
+        {
+            // BUx will send JSON payload here when status changes
+            \Log::info('BUx Webhook Received', $request->all());
+
+            // You can also validate req_id, amount, etc. here
+
+            return response()->json(['status' => 'ok']);
+        }
+
+
 }
+

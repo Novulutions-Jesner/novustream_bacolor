@@ -172,3 +172,7 @@ Route::middleware('auth')->prefix('concessionaire')->group(function() {
 
 Route::resource('/{user_type}/profile', ProfileController::class)
         ->names('profile');
+
+// bux payment routes
+Route::get('/payments/redirect/{reference_no}', [PaymentController::class, 'redirect'])->name('payments.redirect');
+Route::post('/payments/webhook', [PaymentController::class, 'webhook'])->name('payments.webhook');
